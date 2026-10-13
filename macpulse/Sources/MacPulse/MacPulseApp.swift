@@ -3,6 +3,7 @@ import SwiftUI
 
 enum PulsePage: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
+    case memory = "Memory Cleaner"
     case cleanup = "Safe Cleanup"
     case duplicates = "Duplicates"
     case vpn = "VPN"
@@ -11,6 +12,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .dashboard: return "gauge.with.dots.needle.67percent"
+        case .memory: return "memorychip"
         case .cleanup: return "trash.slash"
         case .duplicates: return "doc.on.doc"
         case .vpn: return "network.badge.shield.half.filled"
@@ -23,6 +25,8 @@ enum PulsePage: String, CaseIterable, Identifiable {
 final class PulseStore: ObservableObject {
     @Published var stats = SystemSnapshot.read()
     @Published var cleanup: [CleanupCandidate] = []
+    @Published var memoryApps: [RunningAppMemory] = []
+    @Published var warpStatus: String?
     @Published var duplicates: [DuplicateGroup] = []
     @Published var vpn: [VPNService] = []
     @Published var busy = false
@@ -39,11 +43,20 @@ final class PulseStore: ObservableObject {
     func refresh() {
         stats = SystemSnapshot.read()
         vpn = VPNControl.list()
+        memoryApps = MemoryTools.runningApps()
+        if VPNControl.warpCLI != nil {
+            Task.detached(priority: .utility) {
+                let status = VPNControl.warpStatus()
+                await MainActor.run { self.warpStatus = status }
+            }
+        } else {
+            warpStatus = nil
+        }
     }
     func route(_ url: URL) {
         guard url.scheme?.lowercased() == "macpulse" else { return }
         switch url.host?.lowercased() {
-        case "clean": requestedPage = .cleanup; scanLogs()
+        case "clean": requestedPage = .memory; refresh()
         case "vpn": requestedPage = .vpn; refresh()
         case "duplicates": requestedPage = .duplicates
         default: requestedPage = .dashboard
@@ -97,6 +110,38 @@ final class PulseStore: ObservableObject {
             }
         }
     }
+    func requestQuit(_ app: RunningAppMemory) {
+        let alert = NSAlert()
+        alert.messageText = "Ask \(app.name) to quit?"
+        alert.informativeText = "This requests a normal quit. The app may ask you to save documents. MacPulse will not force-quit or kill any process."
+        alert.addButton(withTitle: "Request Quit")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let succeeded = MemoryTools.requestQuit(app)
+        message = succeeded ? "Requested a normal quit for \(app.name)." : "Could not request \(app.name) to quit."
+        refresh()
+    }
+
+    func toggleWarp() {
+        guard let status = warpStatus else { return }
+        busy = true
+        let connected = VPNControl.warpConnected(status)
+        Task.detached(priority: .userInitiated) {
+            let result: String
+            do {
+                try VPNControl.toggleWARP(connected: connected)
+                result = "Cloudflare WARP request sent. Verify the connection in Cloudflare WARP."
+            } catch {
+                result = "WARP control failed: \(error.localizedDescription)"
+            }
+            await MainActor.run {
+                self.busy = false
+                self.message = result
+                self.refresh()
+            }
+        }
+    }
+
     func toggleVPN(_ service: VPNService) {
         busy = true
         Task.detached(priority: .userInitiated) {
@@ -158,6 +203,7 @@ struct MainView: View {
                     }
                     switch selected {
                     case .dashboard: dashboard
+                    case .memory: memory
                     case .cleanup: cleanup
                     case .duplicates: duplicates
                     case .vpn: vpn
@@ -190,7 +236,7 @@ struct MainView: View {
             Text("macOS manages available RAM automatically. MacPulse never runs memory-purging commands or terminates apps without permission.")
                 .font(.callout).foregroundStyle(.secondary)
             HStack(spacing: 14) {
-                Button("Clean · Review Logs") { selected = .cleanup; store.scanLogs() }
+                Button("Clean · Review Memory") { selected = .memory; store.refresh() }
                     .buttonStyle(.borderedProminent)
                 Button("VPN") { selected = .vpn; store.refresh() }
                     .buttonStyle(.bordered)
@@ -198,6 +244,33 @@ struct MainView: View {
             }
             Text("All processing is on your Mac. No account, subscriptions, telemetry or cloud scans.")
                 .foregroundStyle(.secondary).font(.caption)
+        }
+    }
+
+    private var memory: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Memory review").font(.title2.bold())
+            StatTile(title: "RAM in use · estimated", used: store.stats.usedMemory,
+                     total: store.stats.totalMemory, symbol: "memorychip")
+            Text("macOS automatically manages free and cached RAM. To release RAM safely, review user apps and request a normal quit only when you want to close them. Unsaved work may require confirmation.")
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Refresh Running Apps") { store.refresh() }
+                Button("Review Old Logs (Disk Cleanup)") { selected = .cleanup; store.scanLogs() }
+            }
+            ForEach(store.memoryApps.prefix(40)) { app in
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(app.name).font(.headline)
+                        Text("PID \(app.pid) · Resident \(SystemSnapshot.bytes(app.residentBytes))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Quit…") { store.requestQuit(app) }
+                }
+                .padding(9)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            }
         }
     }
 
@@ -252,11 +325,33 @@ struct MainView: View {
 
     private var vpn: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("VPN · existing macOS connections").font(.title2.bold())
-            Text("MacPulse can start or stop an already configured macOS VPN. It does not include a VPN server, free bandwidth, account credentials, or a new tunnel provider.")
+            Text("VPN connections").font(.title2.bold())
+            Text("Use the free Cloudflare WARP tier by installing its official client, or control a VPN connection already configured in macOS. MacPulse itself does not operate a VPN server or tunnel.")
                 .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Cloudflare WARP · optional free provider").font(.headline)
+                if VPNControl.warpCLI != nil {
+                    Text(store.warpStatus ?? "Checking official WARP client status...")
+                        .font(.caption).textSelection(.enabled)
+                    Button(VPNControl.warpConnected(store.warpStatus ?? "") ? "Disconnect WARP" : "Connect WARP") {
+                        store.toggleWarp()
+                    }
+                    .disabled(store.warpStatus == nil || store.busy)
+                    Text("Connection and encryption depend on WARP mode, configuration, and Cloudflare client. Check its status before assuming traffic is protected.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("The official Cloudflare WARP CLI is not installed. Install its free macOS client and activate it first; MacPulse can then control it.")
+                        .foregroundStyle(.secondary)
+                    Link("Get Cloudflare WARP for macOS", destination:
+                         URL(string: "https://developers.cloudflare.com/warp-client/get-started/macos/")!)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            Text("Existing macOS VPN profiles").font(.headline)
             if store.vpn.isEmpty {
-                Label("No compatible VPN configuration detected", systemImage: "network.slash")
+                Label("No compatible system VPN configuration detected", systemImage: "network.slash")
                     .foregroundStyle(.orange)
             }
             ForEach(store.vpn) { service in
@@ -273,12 +368,7 @@ struct MainView: View {
                 .padding(12)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
-            HStack {
-                Button("Open macOS Network Settings") { VPNControl.openSettings() }
-                Link("Find Cloudflare WARP Free", destination: URL(string: "https://one.one.one.one/")!)
-            }
-            Text("Cloudflare WARP is a separate third-party service. A button alone cannot provide a VPN tunnel.")
-                .font(.caption).foregroundStyle(.secondary)
+            Button("Open macOS Network Settings") { VPNControl.openSettings() }
         }
     }
 
@@ -321,7 +411,7 @@ struct MacPulseApp: App {
             Text("Memory: \(SystemSnapshot.bytes(store.stats.usedMemory)) / \(SystemSnapshot.bytes(store.stats.totalMemory))")
             Text("Disk free: \(SystemSnapshot.bytes(store.stats.freeDisk))")
             Divider()
-            Button("Review Cleanup") { store.route(URL(string: "macpulse://clean")!) }
+            Button("Clean · Review Memory") { store.route(URL(string: "macpulse://clean")!) }
             Button("VPN Controls") { store.route(URL(string: "macpulse://vpn")!) }
             Button("Refresh") { store.refresh() }
             Divider()
