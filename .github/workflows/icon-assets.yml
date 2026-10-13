@@ -28,5 +28,6 @@ jobs:
           git add -f macmotion/Assets.xcassets lumaflow/Assets.xcassets macmotion/Resources/thumbnail.png macmotion/Resources/thumbnail@2x.png
           if ! git diff --cached --quiet; then
             git commit -m "Add rendered MacMotion and LumaFlow app icons"
+            git pull --rebase origin main
             git push origin HEAD:main
           fi
