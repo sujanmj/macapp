@@ -223,15 +223,13 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
-        let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        let login = NSMenuItem(title: LaunchAtLogin.menuTitle, action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
         login.state = LaunchAtLogin.isEnabled ? .on : .off
         menu.addItem(login)
-        if LaunchAtLogin.requiresApproval {
-            let settings = NSMenuItem(title: "Approve Login Item in Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
-            settings.target = self
-            menu.addItem(settings)
-        }
+        let settings = NSMenuItem(title: "Open Login Items Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
+        settings.target = self
+        menu.addItem(settings)
         let updater = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         updater.target = self
         menu.addItem(updater)

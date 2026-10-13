@@ -15,9 +15,9 @@ open LumaFlow.xcodeproj
 
 Press Cmd+R. Click **◐** in the menu bar and choose **Enable Auto Brightness**. macOS requires Screen Recording permission: System Settings → Privacy & Security → Screen & System Audio Recording. Restart the app after granting permission if needed.
 
-To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.5.dmg`).
+To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.6.dmg`).
 
-LumaFlow v0.5 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
+LumaFlow v0.6 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
 
 ## Check for updates
 
@@ -41,7 +41,7 @@ but has no Apple Developer ID signature or notarization. Some macOS releases
 will say an internet-downloaded app "is damaged" even if the DMG checksum is valid.
 
 Drag **LumaFlow.app** from the DMG into **Applications** before launching.
-Verify `shasum -a 256 ~/Downloads/LumaFlow-v0.5.dmg` against the SHA-256 digest
+Verify `shasum -a 256 ~/Downloads/LumaFlow-v0.6.dmg` against the SHA-256 digest
 shown on its [GitHub release](https://github.com/sujanmj/macapp/releases).
 Try **System Settings → Privacy & Security → Open Anyway** if presented.
 
@@ -83,3 +83,8 @@ bash scripts/package-dmg.sh
 - These releases are still **not Apple-notarized**; you may have to use Apple's
   **Open Anyway** mechanism again after an update. Installing from Finder is
   also supported.
+
+
+### Existing login item needs approval?
+
+If the menu shows **Enable Launch at Login in Settings…**, click it to open Apple's **Login Items & Extensions** pane. Enable **LumaFlow** there. This is an already-registered login item: the app will **not** attempt duplicate registration. You can also use **Open Login Items Settings…** in the menu at any time.
