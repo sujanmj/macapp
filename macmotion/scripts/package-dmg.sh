@@ -16,6 +16,16 @@ saver="$PWD/build/saver/MacMotion.saver"
 mkdir -p "$app/Contents/Resources"
 rm -rf "$app/Contents/Resources/MacMotion.saver"
 ditto "$saver" "$app/Contents/Resources/MacMotion.saver"
+# Include the post-quit updater helper inside the signed application.
+xcrun swiftc -swift-version 5 -target arm64-apple-macos14.0 \
+  -O -parse-as-library \
+  -o "$app/Contents/MacOS/MacAppInstallHelper" \
+  ../scripts/MacAppInstallHelper.swift
+if [[ "${MACAPP_SIGNING_IDENTITY:--}" == "-" ]]; then
+  codesign --force --sign - --timestamp=none "$app/Contents/MacOS/MacAppInstallHelper"
+else
+  codesign --force --options runtime --timestamp --sign "$MACAPP_SIGNING_IDENTITY" "$app/Contents/MacOS/MacAppInstallHelper"
+fi
 bash ../scripts/sign-bundle.sh "$app"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
@@ -24,7 +34,7 @@ ditto "$saver" "$stage/MacMotion.saver"
 ln -s /Applications "$stage/Applications"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$stage/MacMotion.app"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$stage/MacMotion.saver"
-dmg="$PWD/MacMotion-v1.5.dmg"
+dmg="$PWD/MacMotion-v1.6.dmg"
 hdiutil create -volname "MacMotion" -srcfolder "$stage" -ov -format UDZO "$dmg"
 hdiutil verify "$dmg"
 bash ../scripts/notarize-dmg.sh "$dmg"

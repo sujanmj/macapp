@@ -17,6 +17,7 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        LaunchAtLogin.configureOnLaunch()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "LumaFlow")
         item.button?.image?.isTemplate = true
@@ -103,6 +104,17 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func toggleLaunchAtLogin() {
+        if let error = LaunchAtLogin.setEnabled(!LaunchAtLogin.isEnabled) {
+            showAlert("Launch at Login", error)
+        }
+        updateMenu()
+    }
+
+    @objc private func openLoginItemsSettings() {
+        LaunchAtLogin.openSettings()
+    }
+
     @objc private func checkForUpdates() {
         Task { await GitHubReleaseUpdater.check(appName: "LumaFlow", releasePrefix: "lumaflow-v") }
     }
@@ -143,6 +155,15 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         let permission = NSMenuItem(title: "Screen Recording Settings…", action: #selector(openPrivacy), keyEquivalent: "")
         permission.target = self
         menu.addItem(permission)
+        let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        login.target = self
+        login.state = LaunchAtLogin.isEnabled ? .on : .off
+        menu.addItem(login)
+        if LaunchAtLogin.requiresApproval {
+            let settings = NSMenuItem(title: "Approve Login Item in Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
+            settings.target = self
+            menu.addItem(settings)
+        }
         let updater = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         updater.target = self
         menu.addItem(updater)

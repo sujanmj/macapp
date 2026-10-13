@@ -1,4 +1,4 @@
-# MacMotion v1.5
+# MacMotion v1.6
 
 **MacMotion** is a free native macOS menu-bar live wallpaper app with a **separate, installable screen saver**.
 
@@ -11,7 +11,7 @@
 
 ## Check for updates
 
-Use the **Check for Updates…** menu-bar item. The app reads published GitHub Releases with tags `macmotion-vX.Y`, compares semantic versions, and offers to download the matching `MacMotion-vX.Y.dmg`. It **verifies the release's SHA-256 digest** before opening the DMG. Installation is manual: drag the new `MacMotion.app` to Applications and relaunch. It never silently replaces a running app. Internet access is used only when you choose to check.
+Use the **Check for Updates…** menu-bar item. The app reads published GitHub Releases with tags `macmotion-vX.Y`, compares semantic versions, and offers to download the matching `MacMotion-vX.Y.dmg`. It verifies the release SHA-256 digest before offering **Install & Relaunch**. An embedded helper replaces the app after it quits, without bypassing Gatekeeper; if installation fails, the verified DMG opens for manual installation. Internet access is used only on request.
 
 ## Build & package
 
@@ -22,7 +22,7 @@ cd macapp/macmotion
 bash scripts/package-dmg.sh
 ```
 
-This creates `MacMotion-v1.5.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
+This creates `MacMotion-v1.6.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
 
 ## Install and enable
 
@@ -64,7 +64,7 @@ launch it directly from inside the mounted DMG.
 For a known trusted download, first compare the SHA-256 printed by:
 
 ```sh
-shasum -a 256 ~/Downloads/MacMotion-v1.5.dmg
+shasum -a 256 ~/Downloads/MacMotion-v1.6.dmg
 ```
 
 with the `sha256:` digest on the matching [GitHub release](https://github.com/sujanmj/macapp/releases).
@@ -83,7 +83,7 @@ open /Applications/MacMotion.app
 This deliberately bypasses Gatekeeper's downloaded-file quarantine protection.
 Use it only after reviewing the source and verifying the intended release.
 If `codesign --verify --deep --strict /Applications/MacMotion.app` fails on
-v1.5, do **not** override the error; report the build issue.
+v1.6, do **not** override the error; report the build issue.
 
 To create a normally trusted DMG, sign with your Apple-issued Developer ID
 certificate and notarize:
@@ -96,3 +96,20 @@ bash scripts/package-dmg.sh
 
 The above environment variables must correspond to real credentials already
 configured in your macOS Keychain; the repository does not include credentials.
+
+## Start at login and one-click updates
+
+- **Launch at Login** is enabled by default on first launch **from /Applications**.
+  Manage it with the checked menu-bar option, or under **System Settings → General → Login Items & Extensions**.
+  macOS may require a one-time approval. Running from Xcode or a mounted DMG does not register a login item.
+- **Check for Updates…** reads this repository's published GitHub Releases on demand.
+  When a newer version is available, choose **Download Update** then **Install & Relaunch**.
+  It verifies the GitHub SHA-256 digest and the downloaded app's bundle identifier,
+  version and code signature before replacing the existing installation.
+- A small signed command-line helper inside the same app bundle waits for the app to
+  exit and then attempts the replacement in `/Applications` before relaunching.
+  It keeps a rollback copy until validation succeeds, and **never requests root privileges or strips Gatekeeper quarantine**.
+  If automatic replacement is denied, the verified DMG opens for manual installation.
+- These releases are still **not Apple-notarized**; you may have to use Apple's
+  **Open Anyway** mechanism again after an update. Installing from Finder is
+  also supported.

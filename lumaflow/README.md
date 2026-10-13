@@ -15,13 +15,13 @@ open LumaFlow.xcodeproj
 
 Press Cmd+R. Click **◐** in the menu bar and choose **Enable Auto Brightness**. macOS requires Screen Recording permission: System Settings → Privacy & Security → Screen & System Audio Recording. Restart the app after granting permission if needed.
 
-To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.4.dmg`).
+To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.5.dmg`).
 
-LumaFlow v0.4 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
+LumaFlow v0.5 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
 
 ## Check for updates
 
-Use the **Check for Updates…** menu-bar item. The app reads published GitHub Releases with tags `lumaflow-vX.Y`, checks the installed app version, downloads the matching DMG only after confirmation, verifies its GitHub SHA-256 digest, and opens the installer. To install, drag the new `LumaFlow.app` to Applications and relaunch. No background update checks, unattended execution or silent app replacement. The update check is the only network action in the app.
+Use the **Check for Updates…** menu-bar item. The app reads published GitHub Releases with tags `lumaflow-vX.Y`, checks the installed app version, downloads the matching DMG after confirmation, verifies its GitHub SHA-256 digest, and offers **Install & Relaunch**. A separate helper waits until the app quits, verifies the replacement bundle, and installs it to /Applications without bypassing Gatekeeper. A manual DMG fallback is provided. The update check is the only network action in the app.
 
 ## Important limitations
 
@@ -41,7 +41,7 @@ but has no Apple Developer ID signature or notarization. Some macOS releases
 will say an internet-downloaded app "is damaged" even if the DMG checksum is valid.
 
 Drag **LumaFlow.app** from the DMG into **Applications** before launching.
-Verify `shasum -a 256 ~/Downloads/LumaFlow-v0.4.dmg` against the SHA-256 digest
+Verify `shasum -a 256 ~/Downloads/LumaFlow-v0.5.dmg` against the SHA-256 digest
 shown on its [GitHub release](https://github.com/sujanmj/macapp/releases).
 Try **System Settings → Privacy & Security → Open Anyway** if presented.
 
@@ -66,3 +66,20 @@ MACAPP_SIGNING_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \
 MACAPP_NOTARY_PROFILE="YOUR_NOTARYTOOL_KEYCHAIN_PROFILE" \
 bash scripts/package-dmg.sh
 ```
+
+## Start at login and one-click updates
+
+- **Launch at Login** is enabled by default on first launch **from /Applications**.
+  Manage it with the checked menu-bar option, or under **System Settings → General → Login Items & Extensions**.
+  macOS may require a one-time approval. Running from Xcode or a mounted DMG does not register a login item.
+- **Check for Updates…** reads this repository's published GitHub Releases on demand.
+  When a newer version is available, choose **Download Update** then **Install & Relaunch**.
+  It verifies the GitHub SHA-256 digest and the downloaded app's bundle identifier,
+  version and code signature before replacing the existing installation.
+- A small signed command-line helper inside the same app bundle waits for the app to
+  exit and then attempts the replacement in `/Applications` before relaunching.
+  It keeps a rollback copy until validation succeeds, and **never requests root privileges or strips Gatekeeper quarantine**.
+  If automatic replacement is denied, the verified DMG opens for manual installation.
+- These releases are still **not Apple-notarized**; you may have to use Apple's
+  **Open Anyway** mechanism again after an update. Installing from Finder is
+  also supported.

@@ -1,0 +1,43 @@
+name: Publish MacMotion v1.6
+on:
+  workflow_run:
+    workflows: ["Build macOS apps"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve successful MacMotion v1.6 build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo sujanmj/macapp --workflow build.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          gh run download "$RUN_ID" --repo sujanmj/macapp --name macmotion-dmg --dir dist
+          test -s dist/MacMotion-v1.6.dmg
+          test -s dist/MacMotion-v1.6.dmg.sha256
+          (cd dist && shasum -a 256 -c MacMotion-v1.6.dmg.sha256)
+      - name: Publish MacMotion 1.6 and SHA-256
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view macmotion-v1.6 --repo sujanmj/macapp >/dev/null 2>&1; then
+            gh release upload macmotion-v1.6 dist/MacMotion-v1.6.dmg dist/MacMotion-v1.6.dmg.sha256 --clobber --repo sujanmj/macapp
+          else
+            gh release create macmotion-v1.6 dist/MacMotion-v1.6.dmg dist/MacMotion-v1.6.dmg.sha256 \
+              --repo sujanmj/macapp --target "${GITHUB_SHA}" \
+              --title "MacMotion v1.6 — signed bundle integrity" \
+              --notes "Adds Launch at Login (enabled by default after installation) and user-approved Install & Relaunch updates through GitHub Releases. Updated apps are verified before replacement, and Gatekeeper quarantine is preserved. Developer ID notarization remains unavailable; macOS may still require user approval."
+          fi

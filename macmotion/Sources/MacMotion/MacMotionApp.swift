@@ -62,6 +62,7 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        LaunchAtLogin.configureOnLaunch()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = NSImage(systemSymbolName: "play.rectangle.fill", accessibilityDescription: "MacMotion")
         statusItem.button?.image?.isTemplate = true
@@ -180,6 +181,17 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
+    @objc private func toggleLaunchAtLogin() {
+        if let error = LaunchAtLogin.setEnabled(!LaunchAtLogin.isEnabled) {
+            showMessage("Launch at Login", error)
+        }
+        rebuildMenu()
+    }
+
+    @objc private func openLoginItemsSettings() {
+        LaunchAtLogin.openSettings()
+    }
+
     @objc private func checkForUpdates() {
         Task { await GitHubReleaseUpdater.check(appName: "MacMotion", releasePrefix: "macmotion-v") }
     }
@@ -211,6 +223,15 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
+        let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        login.target = self
+        login.state = LaunchAtLogin.isEnabled ? .on : .off
+        menu.addItem(login)
+        if LaunchAtLogin.requiresApproval {
+            let settings = NSMenuItem(title: "Approve Login Item in Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
+            settings.target = self
+            menu.addItem(settings)
+        }
         let updater = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         updater.target = self
         menu.addItem(updater)
