@@ -11,13 +11,24 @@ test -d "$app" || { echo "App build missing"; exit 1; }
 widget="$app/Contents/PlugIns/MacPulseWidget.appex"
 test -d "$widget" || { echo "Widget extension was not embedded"; exit 1; }
 bash ../scripts/sign-bundle.sh "$widget"
+# The updater helper runs after MacPulse quits. Sign it before signing the
+# outer app bundle so the signature seal includes the helper.
+xcrun swiftc -swift-version 5 -target arm64-apple-macos14.0 \
+  -O -parse-as-library \
+  -o "$app/Contents/MacOS/MacAppInstallHelper" \
+  ../scripts/MacAppInstallHelper.swift
+if [[ "${MACAPP_SIGNING_IDENTITY:--}" == "-" ]]; then
+  codesign --force --sign - --timestamp=none "$app/Contents/MacOS/MacAppInstallHelper"
+else
+  codesign --force --options runtime --timestamp --sign "$MACAPP_SIGNING_IDENTITY" "$app/Contents/MacOS/MacAppInstallHelper"
+fi
 bash ../scripts/sign-bundle.sh "$app"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/MacPulse.app"
 ln -s /Applications "$stage/Applications"
 codesign --verify --deep --strict --verbose=2 "$stage/MacPulse.app"
-dmg="$PWD/MacPulse-v0.9.dmg"
+dmg="$PWD/MacPulse-v1.0.dmg"
 hdiutil create -volname MacPulse -srcfolder "$stage" -ov -format UDZO "$dmg"
 hdiutil verify "$dmg"
 bash ../scripts/notarize-dmg.sh "$dmg"
