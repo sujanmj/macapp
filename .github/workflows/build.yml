@@ -8,6 +8,9 @@ on:
       - 'lumaflow/**'
       - 'macpulse/**'
       - '.github/workflows/build.yml'
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: macos-15
