@@ -142,6 +142,43 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         refreshPlayback()
     }
 
+    @objc private func installScreenSaver() {
+        guard let source = Bundle.main.resourceURL?.appendingPathComponent("MacMotion.saver"),
+              FileManager.default.fileExists(atPath: source.path) else {
+            showMessage("Screen saver not bundled", "Build the full DMG with scripts/package-dmg.sh, or run scripts/install-screen-saver.sh from the source directory.")
+            return
+        }
+        let saverDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Screen Savers", isDirectory: true)
+        let destination = saverDir.appendingPathComponent("MacMotion.saver", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: saverDir, withIntermediateDirectories: true)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+            showMessage("MacMotion Screen Saver installed", "Open System Settings → Wallpaper → Screen Saver… → Custom, then select MacMotion. It uses the video currently selected in the menu-bar app.")
+        } catch {
+            showMessage("Unable to install screen saver", error.localizedDescription)
+        }
+    }
+
+    @objc private func openWallpaperSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        } else {
+            NSWorkspace.shared.launchApplication("System Settings")
+        }
+    }
+
+    private func showMessage(_ title: String, _ message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.runModal()
+    }
+
     @objc private func quit() { NSApp.terminate(nil) }
 
     private func rebuildMenu() {
@@ -161,6 +198,13 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         lowPower.target = self
         lowPower.state = UserDefaults.standard.bool(forKey: pauseOnLowPowerKey) ? .on : .off
         menu.addItem(lowPower)
+        menu.addItem(.separator())
+        let saver = NSMenuItem(title: "Install Screen Saver…", action: #selector(installScreenSaver), keyEquivalent: "")
+        saver.target = self
+        menu.addItem(saver)
+        let settings = NSMenuItem(title: "Open Wallpaper Settings…", action: #selector(openWallpaperSettings), keyEquivalent: "")
+        settings.target = self
+        menu.addItem(settings)
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit MacMotion", action: #selector(quit), keyEquivalent: "q")
         quit.target = self

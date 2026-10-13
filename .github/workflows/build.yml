@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - app: macmotion
-            dmg: MacMotion-v1.1.dmg
+            dmg: MacMotion-v1.2.dmg
           - app: lumaflow
             dmg: LumaFlow-v0.1.dmg
     steps:
