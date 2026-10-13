@@ -1,4 +1,4 @@
-# MacMotion v1.4
+# MacMotion v1.5
 
 **MacMotion** is a free native macOS menu-bar live wallpaper app with a **separate, installable screen saver**.
 
@@ -22,7 +22,7 @@ cd macapp/macmotion
 bash scripts/package-dmg.sh
 ```
 
-This creates `MacMotion-v1.4.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
+This creates `MacMotion-v1.5.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
 
 ## Install and enable
 
@@ -50,3 +50,49 @@ The saver uses a `ScreenSaverView` plug-in and AVFoundation video rendering; it 
 ## License
 
 MIT. Independent implementation, inspired by [LiveWallpaperMacOS](https://github.com/thusvill/LiveWallpaperMacOS).
+
+## macOS Gatekeeper and downloaded DMGs (important)
+
+The automated public GitHub builds are **ad-hoc code signed and integrity checked**,
+but are **not signed with an Apple Developer ID and are not notarized**. Consequently,
+Safari-downloaded DMGs may show "cannot be verified" or even "is damaged and can't
+be opened" on macOS. A valid DMG checksum does not establish Apple trust.
+
+**First, drag MacMotion.app out of the mounted DMG into Applications.** Do not
+launch it directly from inside the mounted DMG.
+
+For a known trusted download, first compare the SHA-256 printed by:
+
+```sh
+shasum -a 256 ~/Downloads/MacMotion-v1.5.dmg
+```
+
+with the `sha256:` digest on the matching [GitHub release](https://github.com/sujanmj/macapp/releases).
+Then try to open `/Applications/MacMotion.app`. Check **System Settings →
+Privacy & Security → Open Anyway** if available.
+
+If macOS still refuses with "damaged" *after you've verified the exact release
+digest* and trust this repository's source, the following removes the
+quarantine flag **only** from MacMotion (not system-wide):
+
+```sh
+xattr -dr com.apple.quarantine /Applications/MacMotion.app
+open /Applications/MacMotion.app
+```
+
+This deliberately bypasses Gatekeeper's downloaded-file quarantine protection.
+Use it only after reviewing the source and verifying the intended release.
+If `codesign --verify --deep --strict /Applications/MacMotion.app` fails on
+v1.5, do **not** override the error; report the build issue.
+
+To create a normally trusted DMG, sign with your Apple-issued Developer ID
+certificate and notarize:
+
+```sh
+MACAPP_SIGNING_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \
+MACAPP_NOTARY_PROFILE="YOUR_NOTARYTOOL_KEYCHAIN_PROFILE" \
+bash scripts/package-dmg.sh
+```
+
+The above environment variables must correspond to real credentials already
+configured in your macOS Keychain; the repository does not include credentials.
