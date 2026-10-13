@@ -1,4 +1,4 @@
-# MacPulse v0.9 — Free Mac utility & desktop widget
+# MacPulse v1.0 — Free Mac utility, widget & local Health Assistant
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
@@ -8,7 +8,9 @@ Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKe
 - SwiftUI desktop dashboard and menu-bar quick stats for physical RAM and disk usage.
 - **Reversible Safe Cleanup**: scans *only* `~/Library/Logs` for `.log` and `.txt` files older than 14 days (max 50 MB each), previews findings, asks for confirmation, and moves selected eligible files to Trash. No cache destruction, password clearing, system-file modification, `sudo`, or automatic deletion.
 - **Exact Duplicate Finder**: choose a folder; compare same-sized files using SHA-256, report duplicate groups read-only (limit 3,000 files; individual files under 200 MB). No automatic deletion.
-- **Memory cleaner**: lists normal user-facing apps with approximate resident memory; user can request a graceful quit after confirmation (no force-quit, no RAM purge).\n- **Optional Cloudflare WARP integration**: if you separately install and activate Cloudflare's official free WARP macOS client, MacPulse can use its existing `warp-cli` executable to check status and request Connect/Disconnect. Cloudflare operates the tunnel; it is not hosted, built, bundled or provided by MacPulse.\n- **VPN controls**: lists compatible VPN services already configured in macOS using `scutil --nc list`, offers Connect/Disconnect and Network Settings shortcut. This **does not create a free VPN service** or route traffic without an existing configured server/provider. Cloudflare WARP's separate free client is linked as an option.
+- **Memory cleaner**: lists normal user-facing apps with approximate resident memory; user can request a graceful quit after confirmation (no force-quit, no RAM purge).
+- **Optional Cloudflare WARP integration**: if you separately install and activate Cloudflare's official free WARP macOS client, MacPulse can use its existing `warp-cli` executable to check status and request Connect/Disconnect. Cloudflare operates the tunnel; it is not hosted, built, bundled or provided by MacPulse.
+- **VPN controls**: lists compatible VPN services already configured in macOS using `scutil --nc list`, offers Connect/Disconnect and Network Settings shortcut. This **does not create a free VPN service** or route traffic without an existing configured server/provider. Cloudflare WARP's separate free client is linked as an option.
 - Shortcuts to Applications, Login Items & Extensions, Privacy & Security, and GitHub releases.
 
 ## Storage Analyzer (introduced in v0.3)
@@ -27,7 +29,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.9.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v1.0.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -38,7 +40,7 @@ The widget extension is embedded inside `MacPulse.app`. If it does not appear im
 - Cleaner moves eligible files to Trash after explicit confirmation; empty Trash separately if desired.
 - Duplicate detection is exact file hashing only, not similar-photo AI classification.
 - VPN **requires** a server and credentials/service. This release only controls existing compatible macOS VPN profiles. Cloudflare's independently operated free-tier WARP service can be used when its official client is installed. A wholly independent globally hosted VPN service cannot be delivered by an app alone, and a native VPN extension needs Apple entitlements and infrastructure.
-- No antivirus engine, real-time anti-malware, adware monitoring, browser blocker, password breach checks, app updater integrations or unattended uninstaller yet. These are future milestones, not working features.
+- No antivirus engine, real-time anti-malware, adware monitoring, browser blocker, password breach checks, or unattended uninstaller. A manual GitHub Release updater is provided for MacPulse itself. These are future milestones, not working features.
 - Releases are **ad-hoc signed but not Apple Developer ID signed or notarized**; macOS may require explicit user approval when installing the DMG. The GitHub Release includes a SHA-256 manifest for verification.
 
 ## Roadmap
@@ -98,8 +100,45 @@ The **App Manager** tab scans /Applications and ~/Applications read-only and dis
 
 The Homebrew cask tracker is **user-triggered**, read-only and uses existing local Homebrew data (`HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --cask --json=v2`). Results may be outdated; it does not download software, upgrade casks or cover non-Homebrew apps. Use official update channels for app security updates.
 
-## Developer Tools (new in v0.9)
+## Developer Tools (new in v1.0)
 
 The **Developer Tools** tab scans well-known folders under your home directory, including Xcode DerivedData and Archives, CoreSimulator caches, Homebrew's cache, npm, Gradle and pip caches. It measures regular files (subject to a 20,000-entry bound per folder) and shows each folder's location, file count and estimated size. The built-in tool detection checks known executable locations for Git, Xcode, Homebrew, Docker, Terraform, kubectl, Node and Python; custom installations may be omitted.
 
 Choose **Review Files…** to open that folder in Storage Analyzer, where you must select specific files and confirm moving them to Trash. **Show in Finder** never changes files. Do not delete Xcode Archives or simulator data unless you understand the implications; cached dependencies will need redownloading. MacPulse does not run `docker system prune`, `brew cleanup`, `rm -rf`, `npm cache clean`, or any privileged cleanup command.
+
+## Mac Health Assistant (new in v1.0)
+
+Open **Health Assistant** or **Mac health observations** on the main dashboard. It makes *local, deterministic, explainable* observations from actual available signals:
+
+- Low disk space (less than 10% of the reported volume or approximately 15 GiB free).
+- High/critical macOS thermal state and high CPU in a single sample (with the caveat that load can be transient).
+- Low battery while discharging.
+- Missing network route, which is not proof of failure of a particular website or VPN.
+- Security Center findings **only after you request a security scan**.
+- Developer folders with large measured contents **only after you request a developer scan**.
+- High memory allocation is shown as informational, **not** proof of memory pressure.
+
+Each observation links to the relevant MacPulse view and explains its limitations. The assistant **does not provide an arbitrary health score**, medical-style battery diagnosis, malware detection, background surveillance, AI cloud calls or automatic fixes. Diagnostic results are held in memory and discarded on app exit.
+
+## Updates from within MacPulse (new in v1.0)
+
+Use the MacPulse menu bar icon → **Check for Updates…**. Updates are manually requested, not checked in the background. MacPulse searches published releases with tags `macpulse-vX.Y`, verifies a downloaded DMG against GitHub's SHA-256 digest, and offers **Install & Relaunch**.
+
+A separately signed helper embedded in MacPulse waits for it to close, validates the replacement app's bundle ID, version and macOS code signature, and attempts to install it into `/Applications`. It keeps a rollback copy until verification succeeds. If permissions or Gatekeeper prevent replacement, it opens the verified DMG for installation through Finder. No `sudo`, quarantine bypass, or silent privilege escalation occurs.
+
+**Gatekeeper:** Public artifacts remain ad-hoc signed and unnotarized until Developer ID credentials are configured. macOS may require **Privacy & Security → Open Anyway** again after an update. GitHub release compilation and integrity checks do not substitute for device-level macOS testing.
+
+## V1.0 verification checklist for first device test
+
+1. Install from the GitHub DMG into Applications and approve it if macOS requests.
+2. Start MacPulse and verify CPU activity, disk size, battery percent, and that network readings change with traffic.
+3. Add small/medium/large widgets; edit the primary metric and quick-action visibility.
+4. Open Security Center and run read-only checks. Confirm the results against System Settings.
+5. Open VPN Center; use DNS lookup only if needed. A VPN connection requires an existing provider or the separate official Cloudflare WARP client.
+6. Scan a selected folder and confirm no cleanup happens without manually selecting files and approving Move to Trash.
+7. Open App Manager and Developer Tools. Check paths and sizes before using any action.
+8. Test **Check for Updates…** from V1.0 once a later release exists.
+
+### Privacy and limits
+
+MacPulse is not affiliated with MacKeeper, Cloudflare or Apple, and it is not a replacement for antivirus or Apple protections. It does not provide a proprietary VPN server. Existing system checks and opt-in scans are all local, except DNS requests directed to your configured DNS provider and explicit GitHub update checks.
