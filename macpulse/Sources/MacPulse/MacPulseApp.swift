@@ -11,6 +11,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
     case duplicates = "Duplicates"
     case vpn = "VPN"
     case security = "Security Center"
+    case apps = "App Manager"
     case tools = "More Tools"
     var id: String { rawValue }
     var icon: String {
@@ -23,6 +24,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
         case .duplicates: return "doc.on.doc"
         case .vpn: return "network.badge.shield.half.filled"
         case .security: return "lock.shield"
+        case .apps: return "app.badge.checkmark"
         case .tools: return "wrench.and.screwdriver"
         }
     }
@@ -49,6 +51,10 @@ final class PulseStore: ObservableObject {
     @Published var securityChecks: [SecurityFinding] = []
     @Published var securityScanTime: Date?
     @Published var isCheckingSecurity = false
+    @Published var installedApps: [InstalledMacApp] = []
+    @Published var outdatedCasks: [BrewOutdatedCask] = []
+    @Published var scanningApps = false
+    @Published var scanningCasks = false
     @Published var busy = false
     @Published var message = ""
     @Published var requestedPage: PulsePage?
@@ -102,12 +108,53 @@ final class PulseStore: ObservableObject {
         }
     }
 
+    func scanInstalledApps() {
+        guard !scanningApps else { return }
+        scanningApps = true
+        Task.detached(priority: .utility) {
+            let apps = AppInventory.list()
+            await MainActor.run {
+                self.installedApps = apps
+                self.scanningApps = false
+            }
+        }
+    }
+
+    func scanOutdatedCasks() {
+        guard !scanningCasks else { return }
+        scanningCasks = true
+        Task.detached(priority: .utility) {
+            let casks = BrewCaskReview.outdated()
+            await MainActor.run {
+                self.outdatedCasks = casks
+                self.scanningCasks = false
+                self.message = "Cask metadata checked. Results may be stale; Homebrew was not updated."
+            }
+        }
+    }
+
+    func trashInstalledApp(_ item: InstalledMacApp) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Move \(item.name) to Trash?"
+        alert.informativeText =
+            "This moves only \(item.url.lastPathComponent). It may require Finder permissions. Running apps cannot be moved. Preferences, cloud data and ~/Library/Application Support remain untouched; closing an app does not save unsaved work."
+        alert.addButton(withTitle: "Move App to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        AppInventory.moveToTrash(item) { text in
+            self.message = text
+            self.scanInstalledApps()
+        }
+    }
+
     func route(_ url: URL) {
         guard url.scheme?.lowercased() == "macpulse" else { return }
         switch url.host?.lowercased() {
         case "clean": requestedPage = .memory; refresh()
         case "vpn": requestedPage = .vpn; refresh()
         case "security": requestedPage = .security; scanSecurity()
+        case "apps": requestedPage = .apps; scanInstalledApps()
         case "duplicates": requestedPage = .duplicates
         case "storage": requestedPage = .storage
         default: requestedPage = .dashboard
@@ -329,6 +376,7 @@ struct MainView: View {
                     case .duplicates: duplicates
                     case .vpn: vpn
                     case .security: security
+                    case .apps: appManager
                     case .tools: tools
                     }
                     if !store.message.isEmpty {
@@ -349,6 +397,7 @@ struct MainView: View {
             if page == .security && store.securityChecks.isEmpty {
                 store.scanSecurity()
             }
+            if page == .apps && store.installedApps.isEmpty { store.scanInstalledApps() }
         }
     }
 
@@ -793,6 +842,67 @@ struct MainView: View {
             if !store.securityChecks.isEmpty {
                 Text("An unavailable check is not proof that a protection is disabled. Security settings can change; use Apple System Settings to verify. This report does not access protected TCC databases or inspect malware.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var appManager: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Application inventory").font(.title2.bold())
+            Text("Only user-installable /Applications and ~/Applications bundles are listed. System apps are excluded. MacPulse will never delete app preferences, containers or support files, and cannot guarantee complete removal.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Scan Installed Apps") { store.scanInstalledApps() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.scanningApps)
+                Button("Check Homebrew Casks · local metadata") { store.scanOutdatedCasks() }
+                    .disabled(store.scanningCasks)
+                if store.scanningApps || store.scanningCasks { ProgressView() }
+            }
+            Text("\(store.installedApps.count) application bundles found")
+                .font(.headline)
+            ForEach(store.installedApps.prefix(250)) { app in
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(app.name).font(.headline).lineLimit(1)
+                        Text("v\(app.version) · \(app.bundleID ?? "No bundle ID")")
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text(app.url.path).font(.caption2).foregroundStyle(.secondary)
+                            .textSelection(.enabled).lineLimit(1)
+                    }
+                    Spacer()
+                    if app.isRunning {
+                        Text("Running").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Button("Show") {
+                        NSWorkspace.shared.activateFileViewerSelecting([app.url])
+                    }
+                    Button("Trash…") { store.trashInstalledApp(app) }
+                        .disabled(app.isRunning)
+                }
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+            Divider()
+            Text("Homebrew cask updates · read-only").font(.headline)
+            Text("Only checks locally installed Homebrew metadata with automatic Homebrew refresh disabled. This is not a complete update tracker; many apps are installed outside Homebrew.")
+                .font(.caption).foregroundStyle(.secondary)
+            if store.outdatedCasks.isEmpty {
+                Text("No outdated casks reported, or Homebrew isn't installed / metadata is unavailable.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(store.outdatedCasks) { cask in
+                HStack {
+                    Text(cask.token).font(.headline)
+                    Spacer()
+                    Text("\(cask.installedVersion) → \(cask.currentVersion)")
+                        .font(.caption.monospaced()).textSelection(.enabled)
+                }
+            }
+            Button("Open App Store") {
+                if let url = URL(string: "macappstore://") {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
     }
