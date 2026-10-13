@@ -1,0 +1,37 @@
+name: Publish LumaFlow DMG
+
+on:
+  push:
+    paths:
+      - '.github/workflows/lumaflow-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download previously verified LumaFlow DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download 38428288400 --repo sujanmj/macapp --name lumaflow-dmg --dir dist
+          test -s dist/LumaFlow-v0.1.dmg
+          sha256sum dist/LumaFlow-v0.1.dmg
+      - name: Publish downloadable LumaFlow v0.1 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view lumaflow-v0.1 --repo sujanmj/macapp >/dev/null 2>&1; then
+            gh release upload lumaflow-v0.1 dist/LumaFlow-v0.1.dmg --clobber --repo sujanmj/macapp
+          else
+            gh release create lumaflow-v0.1 dist/LumaFlow-v0.1.dmg \
+              --repo sujanmj/macapp \
+              --target "${GITHUB_SHA}" \
+              --title "LumaFlow v0.1" \
+              --notes "Free experimental macOS content-aware brightness app. Uses Screen Recording permission to sample pixels locally, and an unsupported private macOS brightness API. Unsigned and not notarized; test on your own Mac before distributing."
+          fi
