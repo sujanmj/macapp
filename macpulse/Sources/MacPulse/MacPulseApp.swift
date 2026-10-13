@@ -4,6 +4,7 @@ import Charts
 
 enum PulsePage: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
+    case health = "Health Assistant"
     case performance = "Performance"
     case memory = "Memory Cleaner"
     case storage = "Storage Analyzer"
@@ -18,6 +19,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .dashboard: return "gauge.with.dots.needle.67percent"
+        case .health: return "heart.text.square"
         case .performance: return "cpu"
         case .memory: return "memorychip"
         case .storage: return "externaldrive"
@@ -35,6 +37,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
 @MainActor
 final class PulseStore: ObservableObject {
     @Published var stats = SystemSnapshot.read()
+    @Published var insights: [HealthInsight] = []
     @Published var metrics = LiveMetrics.initial
     @Published var performanceHistory: [PerformancePoint] = []
     private let telemetrySampler = AdvancedSystemSampler()
@@ -91,6 +94,7 @@ final class PulseStore: ObservableObject {
         }
         vpn = VPNControl.list()
         memoryApps = MemoryTools.runningApps()
+        refreshInsights()
         if VPNControl.warpCLI != nil {
             Task.detached(priority: .utility) {
                 let status = VPNControl.warpStatus()
@@ -109,6 +113,7 @@ final class PulseStore: ObservableObject {
                 self.securityChecks = results
                 self.securityScanTime = Date()
                 self.isCheckingSecurity = false
+                self.refreshInsights()
             }
         }
     }
@@ -163,6 +168,7 @@ final class PulseStore: ObservableObject {
                 self.developerReports = results
                 self.developerTools = tools
                 self.scanningDeveloper = false
+                self.refreshInsights()
                 self.message = "Developer storage audit complete. All measured sizes are estimates; no files were changed."
             }
         }
@@ -174,10 +180,21 @@ final class PulseStore: ObservableObject {
         analyze(folder: report.url)
     }
 
+    func refreshInsights() {
+        insights = HealthInsights.evaluate(
+            snapshot: stats,
+            metrics: metrics,
+            network: networkState,
+            security: securityChecks,
+            developer: developerReports
+        )
+    }
+
     func route(_ url: URL) {
         guard url.scheme?.lowercased() == "macpulse" else { return }
         switch url.host?.lowercased() {
         case "clean": requestedPage = .memory; refresh()
+        case "health": requestedPage = .health; refreshInsights()
         case "vpn": requestedPage = .vpn; refresh()
         case "security": requestedPage = .security; scanSecurity()
         case "apps": requestedPage = .apps; scanInstalledApps()
@@ -396,6 +413,7 @@ struct MainView: View {
                     }
                     switch selected {
                     case .dashboard: dashboard
+                    case .health: healthAssistant
                     case .performance: performance
                     case .memory: memory
                     case .storage: storage
@@ -421,6 +439,7 @@ struct MainView: View {
             if let newValue { selected = newValue }
         }
         .onOpenURL(perform: store.route)
+        .onAppear { store.refreshInsights() }
         .onChange(of: selected) { page in
             if page == .security && store.securityChecks.isEmpty {
                 store.scanSecurity()
@@ -462,7 +481,28 @@ struct MainView: View {
             }
             .padding(18)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-            Button("Detailed CPU, battery & network activity") { selected = .performance }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("Mac health observations", systemImage: "heart.text.square")
+                        .font(.headline)
+                    Spacer()
+                    Button("Open Health Assistant") { selected = .health }
+                }
+                Text("Recommendations are generated locally from measured signals and previously requested diagnostics. They are not an antivirus or a Mac health score.")
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(store.insights.prefix(3)) { insight in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: insight.level.icon)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(insight.title).font(.subheadline.bold())
+                            Text(insight.explanation).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        Button("Detailed CPU, battery & network activity") { selected = .performance }
                         Text("macOS manages available RAM automatically. MacPulse never runs memory-purging commands or terminates apps without permission.")
                 .font(.callout).foregroundStyle(.secondary)
             HStack(spacing: 14) {
@@ -476,6 +516,45 @@ struct MainView: View {
             }
             Text("All processing is on your Mac. No account, subscriptions, telemetry or cloud scans.")
                 .foregroundStyle(.secondary).font(.caption)
+        }
+    }
+
+    private var healthAssistant: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Mac Health Assistant").font(.title2.bold())
+            Text("Local explanations based on CPU activity, battery, thermal state, free disk space, network route, optional security checks and developer storage. No account, AI subscription, remote scan, or unverified health score.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Refresh Health Observations") {
+                    store.refresh()
+                    store.refreshInsights()
+                }
+                .buttonStyle(.borderedProminent)
+                Button("Run Optional Security Checks") { store.scanSecurity() }
+                Spacer()
+                Text("\(store.insights.filter { $0.level == .attention }.count) items for review")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(store.insights) { insight in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label(insight.title, systemImage: insight.level.icon)
+                            .font(.headline)
+                        Spacer()
+                        Text(insight.level.rawValue).font(.caption.weight(.semibold))
+                    }
+                    Text(insight.explanation).font(.callout)
+                    Text(insight.recommendedAction).font(.callout).foregroundStyle(.secondary)
+                    if let page = insight.page {
+                        Button("Open \(page.rawValue)") { selected = page }
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }
+            Text("A normal observation never means your Mac is malware-free. Missing or unavailable measurements do not imply a problem. Changes in CPU or battery usage can be transient.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
