@@ -1114,8 +1114,12 @@ struct MacPulseApp: App {
             Button("Clean · Review Memory") { store.route(URL(string: "macpulse://clean")!) }
             Button("VPN Controls") { store.route(URL(string: "macpulse://vpn")!) }
             Button("Storage Analyzer") { store.route(URL(string: "macpulse://storage")!) }
+            Button("Mac Health Assistant") { store.route(URL(string: "macpulse://health")!) }
             Button("Refresh") { store.refresh() }
             Divider()
+            Button("Check for Updates…") {
+                Task { await MacPulseUpdater.check(appName: "MacPulse", releasePrefix: "macpulse-v") }
+            }
             Link("About / Releases", destination: URL(string: "https://github.com/sujanmj/macapp/releases")!)
         }
     }
