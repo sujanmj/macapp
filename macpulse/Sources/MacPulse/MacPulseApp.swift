@@ -40,6 +40,10 @@ final class PulseStore: ObservableObject {
 
     @Published var memoryApps: [RunningAppMemory] = []
     @Published var warpStatus: String?
+    @Published var networkState = NetworkState.unknown
+    @Published var dnsResult: DNSLookup?
+    @Published var dnsBusy = false
+    private let pathObserver = NetworkPathObserver()
     @Published var duplicates: [DuplicateGroup] = []
     @Published var vpn: [VPNService] = []
     @Published var securityChecks: [SecurityFinding] = []
@@ -51,6 +55,10 @@ final class PulseStore: ObservableObject {
     private var timer: Timer?
 
     init() {
+        pathObserver.onUpdate = { [weak self] value in
+            Task { @MainActor in self?.networkState = value }
+        }
+        pathObserver.start()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -236,6 +244,19 @@ final class PulseStore: ObservableObject {
                 self.busy = false
                 self.message = result
                 self.refresh()
+            }
+        }
+    }
+
+    func lookupDNS(_ host: String) {
+        guard !dnsBusy else { return }
+        dnsBusy = true
+        dnsResult = nil
+        Task.detached(priority: .userInitiated) {
+            let result = DNSDiagnostics.resolve(host)
+            await MainActor.run {
+                self.dnsResult = result
+                self.dnsBusy = false
             }
         }
     }
@@ -640,9 +661,53 @@ struct MainView: View {
         }
     }
 
+    @State private var diagnosticHost = "example.com"
+
+    private var networkDiagnosticsView: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text("Connection diagnostics").font(.headline)
+            HStack {
+                Label(store.networkState.state, systemImage: "network")
+                Spacer()
+                Text(store.networkState.interface).font(.callout)
+            }
+            Text("IPv4: \(store.networkState.supportsIPv4 ? "Available" : "Unavailable") · IPv6: \(store.networkState.supportsIPv6 ? "Available" : "Unavailable")")
+                .font(.callout)
+            Text("Metered: \(store.networkState.isExpensive ? "Yes" : "No") · Low Data Mode: \(store.networkState.isConstrained ? "On" : "Off")")
+                .font(.callout)
+            Text("Network.framework reports route availability, not that a particular website or VPN is reachable.")
+                .font(.caption).foregroundStyle(.secondary)
+            Divider()
+            Text("DNS lookup · manually requested").font(.subheadline.bold())
+            HStack {
+                TextField("Hostname", text: $diagnosticHost)
+                    .textFieldStyle(.roundedBorder)
+                Button("Resolve") { store.lookupDNS(diagnosticHost) }
+                    .disabled(store.dnsBusy)
+            }
+            if store.dnsBusy { ProgressView("Resolving…") }
+            if let result = store.dnsResult {
+                Text("\(result.host) · \(result.elapsedMs) ms")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let error = result.error {
+                    Text(error).foregroundStyle(.orange).textSelection(.enabled)
+                } else {
+                    ForEach(result.addresses, id: \.self) { ip in
+                        Text(ip).font(.callout.monospaced()).textSelection(.enabled)
+                    }
+                }
+            }
+            Text("DNS requests use your configured resolver when you press Resolve. MacPulse does not operate its own DNS, VPN or proxy.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
     private var vpn: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("VPN connections").font(.title2.bold())
+            Text("VPN & Network Center").font(.title2.bold())
+            networkDiagnosticsView
             Text("Use the free Cloudflare WARP tier by installing its official client, or control a VPN connection already configured in macOS. MacPulse itself does not operate a VPN server or tunnel.")
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 12) {
