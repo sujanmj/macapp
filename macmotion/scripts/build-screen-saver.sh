@@ -30,5 +30,5 @@ xcrun swiftc -swift-version 5 \
   -framework AppKit -framework ScreenSaver -framework AVFoundation -framework QuartzCore \
   -o "$bundle/Contents/MacOS/$name" \
   Sources/ScreenSaver/MacMotionScreenSaverView.swift
-codesign --force --sign - --timestamp=none "$bundle"
-echo "Built screen saver with icon: $bundle"
+bash ../scripts/sign-bundle.sh "$bundle"
+echo "Built screen saver with icon and validated signature: $bundle"

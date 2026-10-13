@@ -12,16 +12,21 @@ app="$PWD/build/Build/Products/Release/MacMotion.app"
 test -d "$app" || { echo "App was not built"; exit 1; }
 bash scripts/build-screen-saver.sh
 saver="$PWD/build/saver/MacMotion.saver"
-# The menu-bar app can install the bundled saver without additional downloads.
+# Embed the signed screen saver FIRST, then sign the complete app LAST.
 mkdir -p "$app/Contents/Resources"
+rm -rf "$app/Contents/Resources/MacMotion.saver"
 ditto "$saver" "$app/Contents/Resources/MacMotion.saver"
+bash ../scripts/sign-bundle.sh "$app"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/MacMotion.app"
 ditto "$saver" "$stage/MacMotion.saver"
 ln -s /Applications "$stage/Applications"
-hdiutil create \
-  -volname "MacMotion" -srcfolder "$stage" -ov -format UDZO \
-  "$PWD/MacMotion-v1.4.dmg"
-hdiutil verify "$PWD/MacMotion-v1.4.dmg"
-echo "DMG ready: $PWD/MacMotion-v1.4.dmg"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$stage/MacMotion.app"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$stage/MacMotion.saver"
+dmg="$PWD/MacMotion-v1.5.dmg"
+hdiutil create -volname "MacMotion" -srcfolder "$stage" -ov -format UDZO "$dmg"
+hdiutil verify "$dmg"
+bash ../scripts/notarize-dmg.sh "$dmg"
+shasum -a 256 "$dmg" > "$dmg.sha256"
+echo "DMG ready: $dmg"
