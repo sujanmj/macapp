@@ -1,0 +1,49 @@
+name: MacPulse
+options:
+  bundleIdPrefix: com.sujanmj
+  deploymentTarget:
+    macOS: '14.0'
+targets:
+  MacPulse:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/MacPulse
+      - Sources/Shared
+      - Assets.xcassets
+    dependencies:
+      - target: MacPulseWidget
+        embed: true
+    preBuildScripts:
+      - name: Generate MacPulse App Icon
+        script: bash "$SRCROOT/scripts/generate-icons.sh"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macpulse
+        MARKETING_VERSION: '0.1.0'
+        CURRENT_PROJECT_VERSION: '1'
+        SWIFT_VERSION: '5.9'
+        MACOSX_DEPLOYMENT_TARGET: '14.0'
+        INFOPLIST_FILE: Sources/MacPulse/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: NO
+  MacPulseWidget:
+    type: app-extension
+    subtype: widgetkit-extension
+    platform: macOS
+    sources:
+      - Sources/MacPulseWidget
+      - Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macpulse.widget
+        MARKETING_VERSION: '0.1.0'
+        CURRENT_PROJECT_VERSION: '1'
+        SWIFT_VERSION: '5.9'
+        MACOSX_DEPLOYMENT_TARGET: '14.0'
+        INFOPLIST_FILE: Sources/MacPulseWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: YES

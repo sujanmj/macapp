@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<defs><linearGradient id="bg" x2="100%" y2="100%"><stop stop-color="#082438"/><stop offset=".52" stop-color="#075363"/><stop offset="1" stop-color="#103876"/></linearGradient>
+<linearGradient id="gl" x1="0" y1="0" x2="100%" y2="100%"><stop stop-color="#8bffe1"/><stop offset=".5" stop-color="#3ce2fa"/><stop offset="1" stop-color="#6286fc"/></linearGradient>
+<clipPath id="mask"><rect x="72" y="72" width="880" height="880" rx="206"/></clipPath>
+</defs><g clip-path="url(#mask)">
+<rect x="72" y="72" width="880" height="880" fill="url(#bg)"/>
+<circle cx="505" cy="520" r="325" stroke="#21d9db" opacity=".32" fill="none" stroke-width="25"/>
+<circle cx="505" cy="520" r="262" fill="#021522" opacity=".42"/>
+<path d="M140 532h182l84-152 110 311 106-218 66 59h190" stroke="#031b2c" stroke-width="80" opacity=".6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M140 532h182l84-152 110 311 106-218 66 59h190" stroke="url(#gl)" stroke-width="51" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="744" cy="266" r="67" fill="#0a404f" stroke="#5ef4d2" stroke-width="12"/>
+<path d="M717 266l19 22 39-52" stroke="#c2fff3" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<ellipse cx="315" cy="235" rx="206" ry="91" fill="#fff" opacity=".06" transform="rotate(-25 315 235)"/>
+</g><rect x="76" y="76" width="872" height="872" rx="204" stroke="#c1ffff" stroke-opacity=".3" stroke-width="7" fill="none"/>
+</svg>
