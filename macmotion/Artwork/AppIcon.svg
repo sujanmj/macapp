@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="base" x2="100%" y2="100%"><stop stop-color="#081942"/><stop offset=".5" stop-color="#243387"/><stop offset="1" stop-color="#69217f"/></linearGradient>
+<radialGradient id="a" cx="18%" cy="68%" r="85%"><stop stop-color="#03d7fa" stop-opacity=".76"/><stop offset="1" stop-color="#03d7fa" stop-opacity="0"/></radialGradient>
+<radialGradient id="b" cx="93%" cy="76%" r="70%"><stop stop-color="#ff36b0" stop-opacity=".62"/><stop offset="1" stop-color="#ff36b0" stop-opacity="0"/></radialGradient>
+<linearGradient id="wave" x2="95%" y2="100%"><stop stop-color="#13ddfb"/><stop offset=".45" stop-color="#5572ee"/><stop offset="1" stop-color="#f22ec1"/></linearGradient>
+<linearGradient id="pink" x2="100%" y2="100%"><stop stop-color="#bf35e9"/><stop offset=".55" stop-color="#f552b7"/><stop offset="1" stop-color="#ffca78"/></linearGradient>
+<linearGradient id="play" x1="0" y1="0" x2="100%" y2="100%"><stop stop-color="#f3ffff"/><stop offset=".5" stop-color="#a5fbff"/><stop offset="1" stop-color="#32b7fe"/></linearGradient>
+<clipPath id="c"><rect x="76" y="76" width="872" height="872" rx="203"/></clipPath>
+</defs><g clip-path="url(#c)">
+<rect x="76" y="76" width="872" height="872" fill="url(#base)"/><rect x="76" y="76" width="872" height="872" fill="url(#a)"/><rect x="76" y="76" width="872" height="872" fill="url(#b)"/>
+<path d="M-55 746 C160 456 339 786 542 666 S899 460 1050 620 V1060 H-55Z" fill="url(#wave)"/>
+<path d="M-55 882 C178 590 338 912 565 788 C764 678 896 664 1050 741 V1050 H-55Z" fill="url(#pink)"/>
+<path d="M55 751 C230 506 372 779 537 677 C713 575 834 486 976 566" fill="none" stroke="#c9fcff" stroke-width="17" opacity=".8"/>
+<path d="M64 832 C245 630 388 889 590 777 C753 690 882 652 979 713" fill="none" stroke="#fff2ff" stroke-width="9" opacity=".65"/>
+<circle cx="506" cy="471" r="230" stroke="#bcecff" stroke-width="10" fill="#102354" fill-opacity=".39" stroke-opacity=".38"/>
+<path d="M435 302 Q430 288 451 302 L706 460 Q726 474 705 490 L453 645 Q431 662 433 635Z" fill="#020b25" opacity=".48" transform="translate(12 18)"/>
+<path d="M435 302 Q430 288 451 302 L706 460 Q726 474 705 490 L453 645 Q431 662 433 635Z" fill="url(#play)" stroke="#ebffff" stroke-width="9" stroke-linejoin="round"/>
+<ellipse cx="322" cy="259" rx="206" ry="91" fill="#fff" opacity=".055" transform="rotate(-30 322 259)"/>
+</g><rect x="79" y="79" width="866" height="866" rx="201" fill="none" stroke="#dcf8ff" stroke-opacity=".24" stroke-width="6"/>
+</svg>
