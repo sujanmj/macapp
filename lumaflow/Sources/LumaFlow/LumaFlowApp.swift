@@ -103,6 +103,10 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func checkForUpdates() {
+        Task { await GitHubReleaseUpdater.check(appName: "LumaFlow", releasePrefix: "lumaflow-v") }
+    }
+
     @objc private func quit() {
         enabled = false
         sampler.stop()
@@ -139,6 +143,10 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         let permission = NSMenuItem(title: "Screen Recording Settings…", action: #selector(openPrivacy), keyEquivalent: "")
         permission.target = self
         menu.addItem(permission)
+        let updater = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updater.target = self
+        menu.addItem(updater)
+        menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit LumaFlow", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)

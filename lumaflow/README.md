@@ -2,7 +2,7 @@
 
 An independent, **experimental** free and open-source alternative inspired by [Rubarb](https://rubarb.bar/). It is not affiliated with Rubarb.
 
-LumaFlow uses ScreenCaptureKit to sample an approximately 160×100 representation of the display twice per second. It calculates screen luminance locally and gently adjusts the MacBook's built-in display brightness. It keeps no screenshots, browsing history, or content logs, and has no network code.
+LumaFlow uses ScreenCaptureKit to sample an approximately 160×100 representation of the display twice per second. It calculates screen luminance locally and gently adjusts the MacBook's built-in display brightness. It keeps no screenshots, browsing history, or content logs, and makes no network requests except when you explicitly choose Check for Updates.
 
 ## Build (macOS 14+, Apple Silicon)
 
@@ -15,9 +15,13 @@ open LumaFlow.xcodeproj
 
 Press Cmd+R. Click **◐** in the menu bar and choose **Enable Auto Brightness**. macOS requires Screen Recording permission: System Settings → Privacy & Security → Screen & System Audio Recording. Restart the app after granting permission if needed.
 
-To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.2.dmg`).
+To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.3.dmg`).
 
-LumaFlow v0.2 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
+LumaFlow v0.3 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
+
+## Check for updates
+
+Use the **Check for Updates…** menu-bar item. The app reads published GitHub Releases with tags `lumaflow-vX.Y`, checks the installed app version, downloads the matching DMG only after confirmation, verifies its GitHub SHA-256 digest, and opens the installer. To install, drag the new `LumaFlow.app` to Applications and relaunch. No background update checks, unattended execution or silent app replacement. The update check is the only network action in the app.
 
 ## Important limitations
 

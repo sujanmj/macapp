@@ -1,4 +1,4 @@
-# MacMotion v1.3
+# MacMotion v1.4
 
 **MacMotion** is a free native macOS menu-bar live wallpaper app with a **separate, installable screen saver**.
 
@@ -9,6 +9,10 @@
 - Distinct colorful MacMotion app icon, a Finder icon for the .saver bundle, and a System Settings screen-saver preview tile.
 - Offline, no advertisements or tracking.
 
+## Check for updates
+
+Use the **Check for Updates…** menu-bar item. The app reads published GitHub Releases with tags `macmotion-vX.Y`, compares semantic versions, and offers to download the matching `MacMotion-vX.Y.dmg`. It **verifies the release's SHA-256 digest** before opening the DMG. Installation is manual: drag the new `MacMotion.app` to Applications and relaunch. It never silently replaces a running app. Internet access is used only when you choose to check.
+
 ## Build & package
 
 ```sh
@@ -18,7 +22,7 @@ cd macapp/macmotion
 bash scripts/package-dmg.sh
 ```
 
-This creates `MacMotion-v1.3.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
+This creates `MacMotion-v1.4.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
 
 ## Install and enable
 

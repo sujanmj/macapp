@@ -180,6 +180,10 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
+    @objc private func checkForUpdates() {
+        Task { await GitHubReleaseUpdater.check(appName: "MacMotion", releasePrefix: "macmotion-v") }
+    }
+
     @objc private func quit() { NSApp.terminate(nil) }
 
     private func rebuildMenu() {
@@ -206,6 +210,10 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
         let settings = NSMenuItem(title: "Open Wallpaper Settings…", action: #selector(openWallpaperSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+        menu.addItem(.separator())
+        let updater = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updater.target = self
+        menu.addItem(updater)
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit MacMotion", action: #selector(quit), keyEquivalent: "q")
         quit.target = self

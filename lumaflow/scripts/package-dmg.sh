@@ -8,5 +8,5 @@ stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 ditto build/Build/Products/Release/LumaFlow.app "$stage/LumaFlow.app"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname LumaFlow -srcfolder "$stage" -ov -format UDZO "$PWD/LumaFlow-v0.2.dmg"
-hdiutil verify "$PWD/LumaFlow-v0.2.dmg"
+hdiutil create -volname LumaFlow -srcfolder "$stage" -ov -format UDZO "$PWD/LumaFlow-v0.3.dmg"
+hdiutil verify "$PWD/LumaFlow-v0.3.dmg"

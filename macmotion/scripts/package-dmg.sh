@@ -22,6 +22,6 @@ ditto "$saver" "$stage/MacMotion.saver"
 ln -s /Applications "$stage/Applications"
 hdiutil create \
   -volname "MacMotion" -srcfolder "$stage" -ov -format UDZO \
-  "$PWD/MacMotion-v1.3.dmg"
-hdiutil verify "$PWD/MacMotion-v1.3.dmg"
-echo "DMG ready: $PWD/MacMotion-v1.3.dmg"
+  "$PWD/MacMotion-v1.4.dmg"
+hdiutil verify "$PWD/MacMotion-v1.4.dmg"
+echo "DMG ready: $PWD/MacMotion-v1.4.dmg"
