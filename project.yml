@@ -1,0 +1,21 @@
+name: MacMotion
+options:
+  bundleIdPrefix: com.macmotion
+  deploymentTarget:
+    macOS: '14.0'
+targets:
+  MacMotion:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/MacMotion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macmotion.wallpaper
+        SWIFT_VERSION: '5.9'
+        MACOSX_DEPLOYMENT_TARGET: '14.0'
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: NO
+        INFOPLIST_KEY_NSHighResolutionCapable: YES
