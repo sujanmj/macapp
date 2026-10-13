@@ -1,0 +1,11 @@
+# Xcode and XcodeGen generated artifacts
+MacMotion.xcodeproj/
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdata/
+.DS_Store
+dmg/
+*.dmg
+*.app
+*.dSYM/
