@@ -1,8 +1,10 @@
 import AppKit
 import SwiftUI
+import Charts
 
 enum PulsePage: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
+    case performance = "Performance"
     case memory = "Memory Cleaner"
     case storage = "Storage Analyzer"
     case cleanup = "Safe Cleanup"
@@ -13,6 +15,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .dashboard: return "gauge.with.dots.needle.67percent"
+        case .performance: return "cpu"
         case .memory: return "memorychip"
         case .storage: return "externaldrive"
         case .cleanup: return "trash.slash"
@@ -26,6 +29,9 @@ enum PulsePage: String, CaseIterable, Identifiable {
 @MainActor
 final class PulseStore: ObservableObject {
     @Published var stats = SystemSnapshot.read()
+    @Published var metrics = LiveMetrics.initial
+    @Published var performanceHistory: [PerformancePoint] = []
+    private let telemetrySampler = AdvancedSystemSampler()
     @Published var cleanup: [CleanupCandidate] = []
     @Published var storageResult: StorageScanResult?
     @Published var selectedStoragePaths: Set<String> = []
@@ -47,6 +53,18 @@ final class PulseStore: ObservableObject {
     }
     func refresh() {
         stats = SystemSnapshot.read()
+        metrics = telemetrySampler.sample()
+        if let cpu = metrics.cpuPercent {
+            performanceHistory.append(PerformancePoint(
+                date: metrics.sampledAt,
+                cpuPercent: cpu,
+                downloadMiBs: (metrics.downloadBytesPerSecond ?? 0) / 1_048_576,
+                uploadMiBs: (metrics.uploadBytesPerSecond ?? 0) / 1_048_576
+            ))
+            if performanceHistory.count > 120 {
+                performanceHistory.removeFirst(performanceHistory.count - 120)
+            }
+        }
         vpn = VPNControl.list()
         memoryApps = MemoryTools.runningApps()
         if VPNControl.warpCLI != nil {
@@ -264,6 +282,7 @@ struct MainView: View {
                     }
                     switch selected {
                     case .dashboard: dashboard
+                    case .performance: performance
                     case .memory: memory
                     case .storage: storage
                     case .cleanup: cleanup
@@ -295,7 +314,32 @@ struct MainView: View {
                 StatTile(title: "Disk space used", used: store.stats.totalDisk - store.stats.freeDisk,
                          total: store.stats.totalDisk, symbol: "internaldrive")
             }
-            Text("macOS manages available RAM automatically. MacPulse never runs memory-purging commands or terminates apps without permission.")
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("CPU usage", systemImage: "cpu").font(.headline)
+                    Text(store.metrics.cpuPercent.map { String(format: "%.0f%%", $0) } ?? "Sampling…")
+                        .font(.title2.bold())
+                    ProgressView(value: (store.metrics.cpuPercent ?? 0) / 100)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Battery", systemImage: "battery.100percent").font(.headline)
+                    Text(store.metrics.batteryPercent.map { "\($0)%" } ?? "Unavailable")
+                        .font(.title2.bold())
+                    Text(store.metrics.batteryState).font(.caption)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Thermal state", systemImage: "thermometer").font(.headline)
+                    Text(store.metrics.thermalState).font(.title2.bold())
+                    Text("macOS thermal guidance").font(.caption)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(18)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+            Button("Detailed CPU, battery & network activity") { selected = .performance }
+                        Text("macOS manages available RAM automatically. MacPulse never runs memory-purging commands or terminates apps without permission.")
                 .font(.callout).foregroundStyle(.secondary)
             HStack(spacing: 14) {
                 Button("Clean · Review Memory") { selected = .memory; store.refresh() }
@@ -308,6 +352,98 @@ struct MainView: View {
             Text("All processing is on your Mac. No account, subscriptions, telemetry or cloud scans.")
                 .foregroundStyle(.secondary).font(.caption)
         }
+    }
+
+    private var performance: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("System activity · local measurements").font(.title2.bold())
+            Text("CPU is calculated from public macOS host tick deltas, so the first sample takes about 15 seconds. Network totals use physical en* interfaces only and may omit virtual, VPN and unusual interfaces.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Label("CPU activity", systemImage: "cpu").font(.headline)
+                    Text(store.metrics.cpuPercent.map { String(format: "%.1f%%", $0) } ?? "Sampling…")
+                        .font(.title.bold())
+                    ProgressView(value: (store.metrics.cpuPercent ?? 0) / 100)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 9) {
+                    Label("Battery", systemImage: "battery.100percent").font(.headline)
+                    Text(store.metrics.batteryPercent.map { "\($0)%" } ?? "N/A")
+                        .font(.title.bold())
+                    Text("\(store.metrics.batteryState) · \(store.metrics.powerSource)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }
+            HStack {
+                Label("Thermal state: \(store.metrics.thermalState)", systemImage: "thermometer")
+                Spacer()
+                Text("Updated every 15 seconds").font(.caption).foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("CPU history · recent samples").font(.headline)
+                if store.performanceHistory.isEmpty {
+                    ProgressView("Collecting initial samples…")
+                } else {
+                    Chart(store.performanceHistory) { point in
+                        LineMark(
+                            x: .value("Time", point.date),
+                            y: .value("CPU (%)", point.cpuPercent)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(.cyan)
+                    }
+                    .chartYScale(domain: 0...100)
+                    .frame(height: 175)
+                }
+            }
+            .padding(18)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Network · hardware interfaces").font(.headline)
+                HStack {
+                    Label("Download", systemImage: "arrow.down")
+                    Spacer()
+                    Text(rate(store.metrics.downloadBytesPerSecond))
+                        .monospacedDigit()
+                }
+                HStack {
+                    Label("Upload", systemImage: "arrow.up")
+                    Spacer()
+                    Text(rate(store.metrics.uploadBytesPerSecond))
+                        .monospacedDigit()
+                }
+                if !store.performanceHistory.isEmpty {
+                    Chart {
+                        ForEach(store.performanceHistory) { point in
+                            LineMark(x: .value("Time", point.date),
+                                     y: .value("Download MiB/s", point.downloadMiBs))
+                                .foregroundStyle(by: .value("Traffic", "Download"))
+                            LineMark(x: .value("Time", point.date),
+                                     y: .value("Upload MiB/s", point.uploadMiBs))
+                                .foregroundStyle(by: .value("Traffic", "Upload"))
+                        }
+                    }
+                    .frame(height: 160)
+                }
+                Text("Rates are estimates and exclude virtual interfaces; VPN tunnel totals may differ.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(18)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            Text("GPU utilization, fan RPM and sensor temperatures are intentionally not reported: these require different system interfaces and cannot be reliably inferred from CPU activity.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func rate(_ value: Double?) -> String {
+        guard let value, value.isFinite else { return "Sampling…" }
+        return String(format: "%.2f MiB/s", value / 1_048_576)
     }
 
     private var memory: some View {
