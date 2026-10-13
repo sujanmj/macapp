@@ -4,14 +4,10 @@ on:
   workflow_run:
     workflows: ["Build macOS apps"]
     types: [completed]
-  push:
-    paths:
-      - '.github/workflows/lumaflow-release.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
-  actions: read
   actions: read
 
 jobs:
