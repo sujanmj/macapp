@@ -33,6 +33,58 @@ enum VPNControl {
         NSWorkspace.shared.open(url)
     }
 
+
+    /// Optional integration with the official, independently installed
+    /// Cloudflare WARP client. MacPulse does not bundle WARP or its tunnel.
+    static var warpCLI: URL? {
+        let locations = [
+            "/opt/homebrew/bin/warp-cli",
+            "/usr/local/bin/warp-cli",
+            "/usr/bin/warp-cli"
+        ]
+        return locations.compactMap { path -> URL? in
+            FileManager.default.isExecutableFile(atPath: path) ? URL(fileURLWithPath: path) : nil
+        }.first
+    }
+
+    static func warpStatus() -> String? {
+        guard let cli = warpCLI else { return nil }
+        return try? run(executable: cli, arguments: ["status"])
+    }
+
+    static func warpConnected(_ status: String) -> Bool {
+        let lower = status.lowercased()
+        // Check disconnected first, since the substring "connected" also
+        // occurs in "disconnected".
+        if lower.contains("disconnected") || lower.contains("disconnecting") { return false }
+        return lower.contains("connected")
+    }
+
+    static func toggleWARP(connected: Bool) throws {
+        guard let cli = warpCLI else {
+            throw NSError(domain: "MacPulseWARP", code: 1, userInfo:
+                [NSLocalizedDescriptionKey: "Install the official Cloudflare WARP macOS client first."])
+        }
+        _ = try run(executable: cli, arguments: [connected ? "disconnect" : "connect"])
+    }
+
+    private static func run(executable: URL, arguments: [String]) throws -> String {
+        let p = Process()
+        p.executableURL = executable
+        p.arguments = arguments
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        try p.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        let response = String(data: data, encoding: .utf8) ?? ""
+        guard p.terminationStatus == 0 else {
+            throw NSError(domain: "MacPulseWARP", code: Int(p.terminationStatus), userInfo:
+                [NSLocalizedDescriptionKey: response.isEmpty ? "WARP client returned an error." : response])
+        }
+        return response
+    }
     private static func execute(_ arguments: [String]) throws -> String {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/scutil")
