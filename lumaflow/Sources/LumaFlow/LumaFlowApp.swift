@@ -1,5 +1,6 @@
 import AppKit
 import ScreenCaptureKit
+import CoreGraphics
 
 @MainActor
 final class LumaFlowController: NSObject, NSApplicationDelegate {
@@ -77,16 +78,72 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
             showAlert("Built-in brightness control unavailable", "LumaFlow currently supports only built-in displays where macOS exposes the DisplayServices brightness interface.")
             return
         }
+        // Check authorization before asking ScreenCaptureKit for screen content.
+        // A blue System Settings switch may refer to a previous ad-hoc-signed build.
+        if !CGPreflightScreenCaptureAccess() {
+            let granted = CGRequestScreenCaptureAccess()
+            if !granted {
+                showCapturePermissionHelp(
+                    "Screen Recording is denied for this installed build. macOS may still show LumaFlow enabled if its code signature changed after an update. Quit LumaFlow, reset its ScreenCapture TCC entry, reopen, and allow access again."
+                )
+                return
+            }
+        }
         baseline = brightness.read() ?? baseline
         enabled = true
         updateMenu()
         Task {
-            do { try await sampler.start() }
-            catch {
+            do {
+                try await sampler.start()
+            } catch {
                 enabled = false
+                sampler.stop()
                 updateMenu()
-                showAlert("Screen Recording permission required", "Allow LumaFlow under System Settings → Privacy & Security → Screen & System Audio Recording, then enable it again. \n\nDetails: \(error.localizedDescription)")
+                let nsError = error as NSError
+                let details = "Capture failed (\(nsError.domain) / \(nsError.code)): \(nsError.localizedDescription)"
+                NSLog("LumaFlow: %@", details)
+                if !CGPreflightScreenCaptureAccess() ||
+                   nsError.localizedDescription.localizedCaseInsensitiveContains("TCC") ||
+                   nsError.localizedDescription.localizedCaseInsensitiveContains("declined") {
+                    showCapturePermissionHelp(details)
+                } else {
+                    showAlert("Unable to start screen analysis", details)
+                }
             }
+        }
+    }
+
+    @objc private func diagnoseScreenRecording() {
+        let authorized = CGPreflightScreenCaptureAccess()
+        if !authorized {
+            showCapturePermissionHelp("Core Graphics reports Screen Recording access is DENIED for this running copy of LumaFlow.")
+        } else {
+            showAlert(
+                "Screen Recording diagnostic",
+                "Core Graphics reports permission is GRANTED.\\n\\nApp ID: \(Bundle.main.bundleIdentifier ?? "unknown")\\nApp path: \(Bundle.main.bundleURL.path)\\n\\nIf Enable Auto Brightness still fails, capture the full error message and check that you launched the current /Applications copy."
+            )
+        }
+    }
+
+    private func showCapturePermissionHelp(_ reason: String) {
+        let appID = Bundle.main.bundleIdentifier ?? "com.sujanmj.lumaflow"
+        let command = "tccutil reset ScreenCapture \(appID)"
+        let alert = NSAlert()
+        alert.messageText = "LumaFlow screen access needs a reset"
+        alert.alertStyle = .warning
+        alert.informativeText =
+            "\(reason)\\n\\nApp: \(appID)\\nPath: \(Bundle.main.bundleURL.path)\\n\\n1. Quit LumaFlow.\\n2. Run this command in Terminal:\\n\(command)\\n3. Open LumaFlow from /Applications and approve Screen Recording.\\n4. Restart the app if macOS requests it.\\n\\nThis resets only LumaFlow's screen permission."
+        alert.addButton(withTitle: "Copy Reset Command")
+        alert.addButton(withTitle: "Open Privacy Settings")
+        alert.addButton(withTitle: "Close")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
+        case .alertSecondButtonReturn:
+            openPrivacy()
+        default:
+            break
         }
     }
 
@@ -155,6 +212,9 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         let permission = NSMenuItem(title: "Screen Recording Settings…", action: #selector(openPrivacy), keyEquivalent: "")
         permission.target = self
         menu.addItem(permission)
+        let diagnostics = NSMenuItem(title: "Diagnose Screen Recording…", action: #selector(diagnoseScreenRecording), keyEquivalent: "")
+        diagnostics.target = self
+        menu.addItem(diagnostics)
         let login = NSMenuItem(title: LaunchAtLogin.menuTitle, action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
         login.state = LaunchAtLogin.isEnabled ? .on : .off
