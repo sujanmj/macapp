@@ -1,8 +1,8 @@
-# MacPulse v0.2 — Free Mac utility & desktop widget
+# MacPulse v0.3 — Free Mac utility & desktop widget
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
-## What's working in V0.2
+## What's working in V0.3
 
 - Native **WidgetKit desktop widget** displaying estimated memory in use and links **Clean** and **VPN**.
 - SwiftUI desktop dashboard and menu-bar quick stats for physical RAM and disk usage.
@@ -10,6 +10,12 @@ Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKe
 - **Exact Duplicate Finder**: choose a folder; compare same-sized files using SHA-256, report duplicate groups read-only (limit 3,000 files; individual files under 200 MB). No automatic deletion.
 - **Memory cleaner**: lists normal user-facing apps with approximate resident memory; user can request a graceful quit after confirmation (no force-quit, no RAM purge).\n- **Optional Cloudflare WARP integration**: if you separately install and activate Cloudflare's official free WARP macOS client, MacPulse can use its existing `warp-cli` executable to check status and request Connect/Disconnect. Cloudflare operates the tunnel; it is not hosted, built, bundled or provided by MacPulse.\n- **VPN controls**: lists compatible VPN services already configured in macOS using `scutil --nc list`, offers Connect/Disconnect and Network Settings shortcut. This **does not create a free VPN service** or route traffic without an existing configured server/provider. Cloudflare WARP's separate free client is linked as an option.
 - Shortcuts to Applications, Login Items & Extensions, Privacy & Security, and GitHub releases.
+
+## Storage Analyzer (new in v0.3)
+
+Open **Storage Analyzer** from the navigation sidebar or menu bar. Explicitly choose a folder (for example Downloads, Documents or a project directory). MacPulse scans at most 20,000 entries without following symlinks, inspecting hidden files or descending into app packages. It displays measured bytes by file type and the largest individual files. Adjust the minimum size slider; select only specific files you want to discard, then click **Move Selected to Trash**. A second confirmation shows how much space was selected. Immediately before recycle, each selected file is checked again against the chosen folder and its original size. Nothing is permanently deleted or cleaned automatically.
+
+This is deliberately *not* a full-disk usage map: scans skip protected/unreadable paths, packages, hidden files, and anything beyond the safety limit. The measured file sizes can differ from disk allocation or total volume usage.
 
 ## Install and add the desktop widget
 
@@ -21,7 +27,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.2.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & VPN**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v0.3.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & VPN**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -37,8 +43,8 @@ The widget extension is embedded inside `MacPulse.app`. If it does not appear im
 
 ## Roadmap
 
-V0.3: richer per-process memory and disk diagnostics, duplicate review/trash action, application inventory.
-V0.3: permission-based diagnostics, performance and login-items report, optional browser extension research.
-V0.4+: optional self-hosted VPN tunnel integration **only** with valid VPN provider/server configurations and Apple signing entitlements; no claims of free server bandwidth.
+V0.4: richer memory pressure, CPU, battery and network diagnostics.
+V0.5: customizable widgets and better dashboard layouts.
+V0.6+: verifiable security diagnostics, VPN/network improvements, app review and developer tools. No independent VPN server or unverified antivirus claims.
 
 MIT licensed. Please evaluate cleanup selections before confirming.
