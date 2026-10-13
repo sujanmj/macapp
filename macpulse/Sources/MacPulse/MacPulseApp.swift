@@ -367,7 +367,7 @@ struct MainView: View {
                     Label("20,000-entry limit reached; this is a partial scan.", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 }
-                ForEach(report.categoryTotals, id: \.category) { item in
+                ForEach(report.categoryTotals) { item in
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
                             Text(item.category.rawValue)
