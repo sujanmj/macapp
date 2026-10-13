@@ -15,7 +15,8 @@ struct MacAppInstallHelper {
         let version = args[5]
         let hash = args[6].lowercased()
         guard (name == "MacMotion" && id == "com.macmotion.wallpaper") ||
-              (name == "LumaFlow" && id == "com.sujanmj.lumaflow"),
+              (name == "LumaFlow" && id == "com.sujanmj.lumaflow") ||
+              (name == "MacPulse" && id == "com.sujanmj.macpulse"),
               version.range(of: #"^[0-9]+(\.[0-9]+){1,3}$"#, options: .regularExpression) != nil,
               hash.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else { return }
 
