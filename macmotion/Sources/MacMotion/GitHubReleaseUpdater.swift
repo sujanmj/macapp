@@ -2,8 +2,8 @@ import AppKit
 import CryptoKit
 import Foundation
 
-/// Manual, user-initiated updates from this repository's GitHub Releases.
-/// Never executes a downloaded program or replaces the running application.
+/// Manual, user-approved updates from GitHub Releases, with verified install helper.
+/// The helper never elevates privileges or bypasses macOS Gatekeeper.
 @MainActor
 enum GitHubReleaseUpdater {
     private static let releasesEndpoint =
@@ -67,7 +67,7 @@ enum GitHubReleaseUpdater {
             let confirmation = NSAlert()
             confirmation.messageText = "\(appName) \(latest.1) is available"
             confirmation.informativeText =
-                "Installed: \(installed)\nAvailable: \(latest.1)\n\nDownload and verify the official GitHub DMG? You'll install it by dragging the app into Applications."
+                "Installed: \(installed)\nAvailable: \(latest.1)\n\nDownload and verify the official GitHub DMG? You can then install it and restart automatically when macOS permits."
             confirmation.alertStyle = .informational
             confirmation.addButton(withTitle: "Download Update")
             confirmation.addButton(withTitle: "Not Now")
@@ -94,13 +94,44 @@ enum GitHubReleaseUpdater {
             }
             try FileManager.default.moveItem(at: temporaryURL, to: destination)
 
-            if NSWorkspace.shared.open(destination) {
-                alert("Update ready to install",
-                      "Verified \(expectedName) in Downloads and opened it. Drag \(appName).app into Applications to replace the old version, then relaunch.\n\nThe update does not install silently.")
-            } else {
-                alert("Update downloaded",
-                      "Verified \(expectedName) in your Downloads folder. Double-click it and drag \(appName).app into Applications.")
+            let ready = NSAlert()
+            ready.messageText = "Verified \(appName) \(latest.1) update"
+            ready.informativeText = "The DMG has passed GitHub SHA-256 verification. Install the new version in Applications and relaunch?\\n\\nmacOS may still require your approval because these community builds are not Apple-notarized."
+            ready.addButton(withTitle: "Install & Relaunch")
+            ready.addButton(withTitle: "Open DMG Instead")
+            ready.addButton(withTitle: "Later")
+            let selected = ready.runModal()
+            if selected == .alertThirdButtonReturn { return }
+            if selected == .alertSecondButtonReturn {
+                _ = NSWorkspace.shared.open(destination)
+                return
             }
+
+            let expectedID = appName == "MacMotion" ? "com.macmotion.wallpaper" : "com.sujanmj.lumaflow"
+            let appBundle = Bundle.main.bundleURL.standardizedFileURL
+            guard appBundle.path == "/Applications/\(appName).app",
+                  let helper = Bundle.main.executableURL?.deletingLastPathComponent()
+                    .appendingPathComponent("MacAppInstallHelper"),
+                  FileManager.default.isExecutableFile(atPath: helper.path) else {
+                _ = NSWorkspace.shared.open(destination)
+                alert("Manual installation required",
+                      "The app must be installed in /Applications to use one-click updates. Your verified DMG is open; drag \(appName).app into Applications.")
+                return
+            }
+            let task = Process()
+            task.executableURL = helper
+            task.arguments = [
+                "\(ProcessInfo.processInfo.processIdentifier)",
+                destination.path,
+                appName,
+                expectedID,
+                latest.1,
+                String(digest.dropFirst(7))
+            ]
+            try task.run()
+            // Helper waits for our process to quit before updating, then opens the new app.
+            NSApp.terminate(nil)
+
         } catch {
             alert("Update failed", error.localizedDescription)
         }
