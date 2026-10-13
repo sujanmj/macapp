@@ -1,56 +1,112 @@
 import AppKit
 import ServiceManagement
 
+/// Keep the system login-item status authoritative. A registered item may still
+/// require the user to approve it in System Settings.
 @MainActor
 enum LaunchAtLogin {
     private static let preferenceKey = "MacApp.launchAtLoginDesired"
-    static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
-    static var requiresApproval: Bool { SMAppService.mainApp.status == .requiresApproval }
+    private static var service: SMAppService { .mainApp }
+
+    static var isEnabled: Bool { service.status == .enabled }
+    static var requiresApproval: Bool { service.status == .requiresApproval }
+
+    static var menuTitle: String {
+        switch service.status {
+        case .enabled: return "Launch at Login"
+        case .requiresApproval: return "Enable Launch at Login in Settings…"
+        case .notRegistered: return "Launch at Login"
+        case .notFound: return "Open Login Items Settings…"
+        @unknown default: return "Open Login Items Settings…"
+        }
+    }
 
     static func configureOnLaunch() {
-        let prefs = UserDefaults.standard
-        if prefs.object(forKey: preferenceKey) == nil {
-            prefs.set(true, forKey: preferenceKey)
+        let settings = UserDefaults.standard
+        if settings.object(forKey: preferenceKey) == nil {
+            settings.set(true, forKey: preferenceKey)
         }
-        guard prefs.bool(forKey: preferenceKey),
-              SMAppService.mainApp.status == .notRegistered,
-              isInstalledInApplications else { return }
-        do { try SMAppService.mainApp.register() }
-        catch { NSLog("Login registration failed: %@", error.localizedDescription) }
+        guard settings.bool(forKey: preferenceKey), isInstalledInApplications else { return }
+        switch service.status {
+        case .enabled, .requiresApproval:
+            // Avoid duplicate registration when macOS already has the login item.
+            break
+        case .notRegistered:
+            do { try service.register() }
+            catch { NSLog("Launch at Login: %@", error.localizedDescription) }
+        case .notFound:
+            // Can't register until macOS can find the installed app.
+            break
+        @unknown default:
+            break
+        }
     }
 
     private static var isInstalledInApplications: Bool {
-        let app = Bundle.main.bundleURL.standardizedFileURL.path
-        let homeApps = FileManager.default.homeDirectoryForCurrentUser
+        let bundleURL = Bundle.main.bundleURL.standardizedFileURL
+        let path = bundleURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Applications").standardizedFileURL.path
-        return app.hasPrefix("/Applications/") || app.hasPrefix(homeApps + "/")
+        return path.hasPrefix("/Applications/") || path.hasPrefix(home + "/")
     }
 
-    static func setEnabled(_ enabled: Bool) -> String? {
+    /// Returns a message on failure or when macOS authorization is required.
+    /// Tapping Enable again never re-registers a pending login item.
+    static func setEnabled(_ desired: Bool) -> String? {
         guard isInstalledInApplications else {
-            return "Install the app in Applications first. Login registration is unavailable from a mounted DMG or Xcode build."
+            return "Install this app into Applications first. Login Items can't be enabled from a mounted DMG or Xcode build."
         }
-        do {
-            if enabled {
-                if SMAppService.mainApp.status != .enabled {
-                    try SMAppService.mainApp.register()
+
+        let status = service.status
+        if desired {
+            switch status {
+            case .enabled:
+                UserDefaults.standard.set(true, forKey: preferenceKey)
+                return nil
+            case .requiresApproval:
+                UserDefaults.standard.set(true, forKey: preferenceKey)
+                openSettings()
+                return "The login item already exists, but macOS needs your approval. Enable this app in Login Items & Extensions."
+            case .notRegistered:
+                do { try service.register() }
+                catch {
+                    // A stale or duplicate system record may cause register() to
+                    // fail even when the item already exists. Let macOS resolve it.
+                    openSettings()
+                    return "macOS couldn't register the login item: \(error.localizedDescription)\nOpen Login Items & Extensions to enable the existing entry, or remove a stale duplicate."
                 }
-            } else if SMAppService.mainApp.status != .notRegistered {
-                try SMAppService.mainApp.unregister()
+                UserDefaults.standard.set(true, forKey: preferenceKey)
+                if service.status == .requiresApproval {
+                    openSettings()
+                    return "Registration succeeded, but macOS requires approval in Login Items & Extensions."
+                }
+                return nil
+            case .notFound:
+                openSettings()
+                return "macOS cannot find this app's login service. Check the installed app under Login Items & Extensions."
+            @unknown default:
+                openSettings()
+                return "macOS could not determine the login-item state."
             }
-            UserDefaults.standard.set(enabled, forKey: preferenceKey)
-            if enabled && SMAppService.mainApp.status == .requiresApproval {
-                return "Approve the app under System Settings → General → Login Items & Extensions."
-            }
-            return nil
-        } catch {
-            return error.localizedDescription
         }
+
+        switch status {
+        case .enabled, .requiresApproval:
+            do { try service.unregister() }
+            catch {
+                openSettings()
+                return "macOS couldn't disable the login item: \(error.localizedDescription)"
+            }
+        case .notRegistered, .notFound:
+            break
+        @unknown default:
+            break
+        }
+        UserDefaults.standard.set(false, forKey: preferenceKey)
+        return nil
     }
 
     static func openSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
-            NSWorkspace.shared.open(url)
-        }
+        SMAppService.openSystemSettingsLoginItems()
     }
 }
