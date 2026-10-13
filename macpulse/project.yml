@@ -20,8 +20,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macpulse
-        MARKETING_VERSION: '0.6.0'
-        CURRENT_PROJECT_VERSION: '6'
+        MARKETING_VERSION: '0.7.0'
+        CURRENT_PROJECT_VERSION: '7'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacPulse/Info.plist
@@ -39,8 +39,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macpulse.widget
-        MARKETING_VERSION: '0.6.0'
-        CURRENT_PROJECT_VERSION: '6'
+        MARKETING_VERSION: '0.7.0'
+        CURRENT_PROJECT_VERSION: '7'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacPulseWidget/Info.plist

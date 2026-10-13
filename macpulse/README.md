@@ -1,4 +1,4 @@
-# MacPulse v0.6 — Free Mac utility & desktop widget
+# MacPulse v0.7 — Free Mac utility & desktop widget
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
@@ -27,7 +27,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.6.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v0.7.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -85,3 +85,9 @@ Click **Security Center** → **Run Security Checks**. MacPulse reads these stat
 Checks run only on request. Results are shown as Enabled, Review, or Unavailable; unavailable is **not** treated as disabled. Security checks link to the relevant macOS System Settings pages. Information may differ from current platform UI or enterprise device policies; confirm there before changing anything.
 
 **Not antivirus:** This does not scan downloaded apps for malware, detect spyware, audit TCC permissions, verify app signatures, or guarantee that a Mac is secure. No Apple security protections are turned off, no recovery keys are read, and no system settings are modified automatically.
+
+## Network Center (new in v0.7)
+
+The VPN tab now includes a read-only route status from Apple's Network.framework, reports Wi-Fi/Ethernet/other interface type, IPv4/IPv6 availability, metered interfaces and Low Data Mode. A **Resolve** button performs a hostname DNS lookup only when explicitly requested, using the Mac's configured DNS resolver; no telemetry or packet capture is uploaded to MacPulse. The DNS response is shown with elapsed time and returned IP addresses.
+
+The system VPN list and free-tier Cloudflare WARP integration **still require a user-configured tunnel or separately installed official Cloudflare client**. MacPulse does not run a VPN server or proxy. Network.framework's route availability does not guarantee that Internet connectivity works.
