@@ -17,7 +17,7 @@ trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/MacPulse.app"
 ln -s /Applications "$stage/Applications"
 codesign --verify --deep --strict --verbose=2 "$stage/MacPulse.app"
-dmg="$PWD/MacPulse-v0.8.dmg"
+dmg="$PWD/MacPulse-v0.9.dmg"
 hdiutil create -volname MacPulse -srcfolder "$stage" -ov -format UDZO "$dmg"
 hdiutil verify "$dmg"
 bash ../scripts/notarize-dmg.sh "$dmg"

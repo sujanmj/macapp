@@ -1,4 +1,4 @@
-# MacPulse v0.8 — Free Mac utility & desktop widget
+# MacPulse v0.9 — Free Mac utility & desktop widget
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
@@ -27,7 +27,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.8.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v0.9.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -97,3 +97,9 @@ The system VPN list and free-tier Cloudflare WARP integration **still require a 
 The **App Manager** tab scans /Applications and ~/Applications read-only and displays each installed app's name, bundle ID, and version. You can reveal an app in Finder or explicitly **Trash…** an individual app bundle after confirmation. Running apps and the current MacPulse app cannot be trashed. This is a guarded move-to-Trash, **not** a complete uninstall: app support files, preferences, receipts and cloud data are not touched. If macOS denies access, use Finder to manage the app. Please close apps and save work before attempting removal.
 
 The Homebrew cask tracker is **user-triggered**, read-only and uses existing local Homebrew data (`HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --cask --json=v2`). Results may be outdated; it does not download software, upgrade casks or cover non-Homebrew apps. Use official update channels for app security updates.
+
+## Developer Tools (new in v0.9)
+
+The **Developer Tools** tab scans well-known folders under your home directory, including Xcode DerivedData and Archives, CoreSimulator caches, Homebrew's cache, npm, Gradle and pip caches. It measures regular files (subject to a 20,000-entry bound per folder) and shows each folder's location, file count and estimated size. The built-in tool detection checks known executable locations for Git, Xcode, Homebrew, Docker, Terraform, kubectl, Node and Python; custom installations may be omitted.
+
+Choose **Review Files…** to open that folder in Storage Analyzer, where you must select specific files and confirm moving them to Trash. **Show in Finder** never changes files. Do not delete Xcode Archives or simulator data unless you understand the implications; cached dependencies will need redownloading. MacPulse does not run `docker system prune`, `brew cleanup`, `rm -rf`, `npm cache clean`, or any privileged cleanup command.
