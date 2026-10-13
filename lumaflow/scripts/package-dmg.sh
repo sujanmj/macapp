@@ -24,7 +24,7 @@ trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/LumaFlow.app"
 ln -s /Applications "$stage/Applications"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$stage/LumaFlow.app"
-dmg="$PWD/LumaFlow-v0.6.dmg"
+dmg="$PWD/LumaFlow-v0.7.dmg"
 hdiutil create -volname LumaFlow -srcfolder "$stage" -ov -format UDZO "$dmg"
 hdiutil verify "$dmg"
 bash ../scripts/notarize-dmg.sh "$dmg"
