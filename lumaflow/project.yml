@@ -1,0 +1,21 @@
+name: LumaFlow
+options:
+  bundleIdPrefix: com.sujanmj
+  deploymentTarget:
+    macOS: '14.0'
+targets:
+  LumaFlow:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/LumaFlow
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.lumaflow
+        SWIFT_VERSION: '5.9'
+        MACOSX_DEPLOYMENT_TARGET: '14.0'
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: NO
+        INFOPLIST_KEY_NSScreenCaptureDescription: "Analyze on-screen light levels locally to adjust brightness."
