@@ -168,10 +168,6 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         updateMenu()
     }
 
-    @objc private func openLoginItemsSettings() {
-        LaunchAtLogin.openSettings()
-    }
-
     @objc private func checkForUpdates() {
         Task { await GitHubReleaseUpdater.check(appName: "LumaFlow", releasePrefix: "lumaflow-v") }
     }
@@ -219,9 +215,6 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         login.target = self
         login.state = LaunchAtLogin.isEnabled ? .on : .off
         menu.addItem(login)
-        let settings = NSMenuItem(title: "Open Login Items Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
-        settings.target = self
-        menu.addItem(settings)
         let updater = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         updater.target = self
         menu.addItem(updater)

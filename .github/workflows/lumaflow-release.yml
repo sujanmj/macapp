@@ -14,7 +14,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Retrieve successful LumaFlow v0.7 build
+      - name: Retrieve successful LumaFlow v0.8 build
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
@@ -25,19 +25,19 @@ jobs:
             RUN_ID=$(gh run list --repo sujanmj/macapp --workflow build.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
           gh run download "$RUN_ID" --repo sujanmj/macapp --name lumaflow-dmg --dir dist
-          test -s dist/LumaFlow-v0.7.dmg
-          test -s dist/LumaFlow-v0.7.dmg.sha256
-          (cd dist && shasum -a 256 -c LumaFlow-v0.7.dmg.sha256)
-      - name: Publish LumaFlow 0.7 and SHA-256
+          test -s dist/LumaFlow-v0.8.dmg
+          test -s dist/LumaFlow-v0.8.dmg.sha256
+          (cd dist && shasum -a 256 -c LumaFlow-v0.8.dmg.sha256)
+      - name: Publish LumaFlow 0.8 and SHA-256
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if gh release view lumaflow-v0.7 --repo sujanmj/macapp >/dev/null 2>&1; then
-            gh release upload lumaflow-v0.7 dist/LumaFlow-v0.7.dmg dist/LumaFlow-v0.7.dmg.sha256 --clobber --repo sujanmj/macapp
+          if gh release view lumaflow-v0.8 --repo sujanmj/macapp >/dev/null 2>&1; then
+            gh release upload lumaflow-v0.8 dist/LumaFlow-v0.8.dmg dist/LumaFlow-v0.8.dmg.sha256 --clobber --repo sujanmj/macapp
           else
-            gh release create lumaflow-v0.7 dist/LumaFlow-v0.7.dmg dist/LumaFlow-v0.7.dmg.sha256 \
+            gh release create lumaflow-v0.8 dist/LumaFlow-v0.8.dmg dist/LumaFlow-v0.8.dmg.sha256 \
               --repo sujanmj/macapp --target "${GITHUB_SHA}" \
-              --title "LumaFlow v0.7 — signed bundle integrity" \
-              --notes "Fixes Enable Launch at Login when macOS already has the item registered or requires approval; opens Apple's Login Items settings rather than registering a duplicate. Keeps verified Install & Relaunch; not notarized."
+              --title "LumaFlow v0.8 — signed bundle integrity" \
+              --notes "LumaFlow v0.8 removes the redundant Open Login Items Settings menu row while preserving the functional Auto Brightness controls and screen-capture diagnostics. Ad-hoc signed; Screen Recording permission may need approval after update."
           fi

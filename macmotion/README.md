@@ -1,4 +1,4 @@
-# MacMotion v1.7
+# MacMotion v1.8
 
 **MacMotion** is a free native macOS menu-bar live wallpaper app with a **separate, installable screen saver**.
 
@@ -22,7 +22,7 @@ cd macapp/macmotion
 bash scripts/package-dmg.sh
 ```
 
-This creates `MacMotion-v1.7.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
+This creates `MacMotion-v1.8.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
 
 ## Install and enable
 
@@ -64,7 +64,7 @@ launch it directly from inside the mounted DMG.
 For a known trusted download, first compare the SHA-256 printed by:
 
 ```sh
-shasum -a 256 ~/Downloads/MacMotion-v1.7.dmg
+shasum -a 256 ~/Downloads/MacMotion-v1.8.dmg
 ```
 
 with the `sha256:` digest on the matching [GitHub release](https://github.com/sujanmj/macapp/releases).
@@ -83,7 +83,7 @@ open /Applications/MacMotion.app
 This deliberately bypasses Gatekeeper's downloaded-file quarantine protection.
 Use it only after reviewing the source and verifying the intended release.
 If `codesign --verify --deep --strict /Applications/MacMotion.app` fails on
-v1.7, do **not** override the error; report the build issue.
+v1.8, do **not** override the error; report the build issue.
 
 To create a normally trusted DMG, sign with your Apple-issued Developer ID
 certificate and notarize:
@@ -118,3 +118,8 @@ configured in your macOS Keychain; the repository does not include credentials.
 ### Already registered but not enabled?
 
 If the **Launch at Login** menu says **Enable Launch at Login in Settings…**, macOS has already registered the item, and a second registration is not needed. Click it to open Apple's **System Settings → General → Login Items & Extensions**, enable **MacMotion**, then reopen MacMotion and confirm the menu item is checked. **Open Login Items Settings…** is always available from the menu. The app does not delete existing records or override the system's permission.
+
+
+### v1.8 menu cleanup
+
+Removed the second hard-coded `Open Login Items Settings…` entry. The single remaining **Launch at Login** menu entry can open Settings when macOS reports an unavailable or approval-pending login service.

@@ -15,9 +15,9 @@ open LumaFlow.xcodeproj
 
 Press Cmd+R. Click **◐** in the menu bar and choose **Enable Auto Brightness**. macOS requires Screen Recording permission: System Settings → Privacy & Security → Screen & System Audio Recording. Restart the app after granting permission if needed.
 
-To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.7.dmg`).
+To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.8.dmg`).
 
-LumaFlow v0.7 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
+LumaFlow v0.8 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
 
 ## Check for updates
 
@@ -41,7 +41,7 @@ but has no Apple Developer ID signature or notarization. Some macOS releases
 will say an internet-downloaded app "is damaged" even if the DMG checksum is valid.
 
 Drag **LumaFlow.app** from the DMG into **Applications** before launching.
-Verify `shasum -a 256 ~/Downloads/LumaFlow-v0.7.dmg` against the SHA-256 digest
+Verify `shasum -a 256 ~/Downloads/LumaFlow-v0.8.dmg` against the SHA-256 digest
 shown on its [GitHub release](https://github.com/sujanmj/macapp/releases).
 Try **System Settings → Privacy & Security → Open Anyway** if presented.
 
@@ -89,7 +89,7 @@ bash scripts/package-dmg.sh
 
 If the menu shows **Enable Launch at Login in Settings…**, click it to open Apple's **Login Items & Extensions** pane. Enable **LumaFlow** there. This is an already-registered login item: the app will **not** attempt duplicate registration. You can also use **Open Login Items Settings…** in the menu at any time.
 
-## Screen Recording says enabled, but capture is denied (v0.7)
+## Screen Recording says enabled, but capture is denied (v0.8)
 
 Symptoms: clicking **Enable Auto Brightness** produces `The user declined TCCs for application, window, display capture`, while LumaFlow has a blue switch in **Screen & System Audio Recording**.
 
@@ -102,6 +102,11 @@ This commonly occurs after using ad-hoc-signed GitHub release builds. macOS asso
 3. Launch **/Applications/LumaFlow.app**, click **Enable Auto Brightness**, and choose **Allow** on macOS's permission prompt.
 4. If prompted, quit and relaunch LumaFlow once more.
 
-Starting with v0.7, the app checks `CGPreflightScreenCaptureAccess()` before calling ScreenCaptureKit, requests authorization on button press using `CGRequestScreenCaptureAccess()`, and offers **Diagnose Screen Recording…** in its menu. Permission problems show the running app path, bundle ID and a copyable app-specific reset command. The app never automatically resets TCC or bypasses it.
+Starting with v0.8, the app checks `CGPreflightScreenCaptureAccess()` before calling ScreenCaptureKit, requests authorization on button press using `CGRequestScreenCaptureAccess()`, and offers **Diagnose Screen Recording…** in its menu. Permission problems show the running app path, bundle ID and a copyable app-specific reset command. The app never automatically resets TCC or bypasses it.
 
 **Long-term fix:** supply a stable **Developer ID** signing identity and notarize public builds, or use a consistent Apple Development identity for local Xcode development. An ad-hoc-signed update can require reapproval; no in-app button can silently override that macOS requirement.
+
+
+### v0.8 menu cleanup
+
+Removed the redundant `Open Login Items Settings…` menu item. The remaining **Launch at Login** row opens Login Items settings when macOS needs approval. Screen Capture and brightness behavior are unchanged. Because builds are ad-hoc signed, macOS might request Screen Recording approval again after installing the update.
