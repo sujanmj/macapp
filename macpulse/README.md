@@ -1,8 +1,8 @@
-# MacPulse v0.3 — Free Mac utility & desktop widget
+# MacPulse v0.4 — Free Mac utility & desktop widget
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
-## What's working in V0.3
+## What's working in V0.4
 
 - Native **WidgetKit desktop widget** displaying estimated memory in use and links **Clean** and **VPN**.
 - SwiftUI desktop dashboard and menu-bar quick stats for physical RAM and disk usage.
@@ -11,7 +11,7 @@ Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKe
 - **Memory cleaner**: lists normal user-facing apps with approximate resident memory; user can request a graceful quit after confirmation (no force-quit, no RAM purge).\n- **Optional Cloudflare WARP integration**: if you separately install and activate Cloudflare's official free WARP macOS client, MacPulse can use its existing `warp-cli` executable to check status and request Connect/Disconnect. Cloudflare operates the tunnel; it is not hosted, built, bundled or provided by MacPulse.\n- **VPN controls**: lists compatible VPN services already configured in macOS using `scutil --nc list`, offers Connect/Disconnect and Network Settings shortcut. This **does not create a free VPN service** or route traffic without an existing configured server/provider. Cloudflare WARP's separate free client is linked as an option.
 - Shortcuts to Applications, Login Items & Extensions, Privacy & Security, and GitHub releases.
 
-## Storage Analyzer (new in v0.3)
+## Storage Analyzer (introduced in v0.3)
 
 Open **Storage Analyzer** from the navigation sidebar or menu bar. Explicitly choose a folder (for example Downloads, Documents or a project directory). MacPulse scans at most 20,000 entries without following symlinks, inspecting hidden files or descending into app packages. It displays measured bytes by file type and the largest individual files. Adjust the minimum size slider; select only specific files you want to discard, then click **Move Selected to Trash**. A second confirmation shows how much space was selected. Immediately before recycle, each selected file is checked again against the chosen folder and its original size. Nothing is permanently deleted or cleaned automatically.
 
@@ -27,7 +27,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.3.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & VPN**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v0.4.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & VPN**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -43,8 +43,20 @@ The widget extension is embedded inside `MacPulse.app`. If it does not appear im
 
 ## Roadmap
 
-V0.4: richer memory pressure, CPU, battery and network diagnostics.
+V0.4: CPU tick activity, battery level/state, public thermal state, hardware network traffic with in-app time series charts.
 V0.5: customizable widgets and better dashboard layouts.
 V0.6+: verifiable security diagnostics, VPN/network improvements, app review and developer tools. No independent VPN server or unverified antivirus claims.
 
 MIT licensed. Please evaluate cleanup selections before confirming.
+
+## Performance dashboard (new in v0.4)
+
+Click **Performance** in the sidebar to view measured CPU activity, CPU history, battery percentage and charging status, thermal pressure as reported by `ProcessInfo.thermalState`, and estimated upload/download rates for hardware `en*` interfaces.
+
+- CPU usage is measured by differences in the public Mach host CPU tick counters. The first measurement displays **Sampling…** until a second sample arrives, normally after 15 seconds.
+- Network speeds are differences in byte counters of physical `en*` interfaces across samples. They are not packet inspection; no traffic contents or IP addresses are collected or stored. Traffic through VPN/virtual/tunnel interfaces may be missing or double represented elsewhere, so these values can differ from Activity Monitor.
+- Battery charge and charging state come from `pmset -g batt` and may be unavailable on a desktop Mac.
+- macOS thermal state is a coarse power-management indicator, not a literal CPU temperature. MacPulse does not claim to measure GPU utilization, fan RPM, sensor temperatures, or accurate macOS memory pressure.
+- The app keeps up to 120 CPU/network samples **only in memory**, approximately 30 minutes at 15-second intervals. There is no background analytics, storage or upload. Charts reset when the app quits.
+
+As before, this monitoring never force-quits applications, purges RAM, or deletes files without user review.
