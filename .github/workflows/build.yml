@@ -20,7 +20,7 @@ jobs:
           - app: lumaflow
             dmg: LumaFlow-v0.8.dmg
           - app: macpulse
-            dmg: MacPulse-v0.1.dmg
+            dmg: MacPulse-v0.2.dmg
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen librsvg
