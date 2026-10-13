@@ -1,10 +1,10 @@
-# MacPulse v0.4 — Free Mac utility & desktop widget
+# MacPulse v0.5 — Free Mac utility & desktop widget
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
-## What's working in V0.4
+## What's working in V0.5
 
-- Native **WidgetKit desktop widget** displaying estimated memory in use and links **Clean** and **VPN**.
+- Native **WidgetKit desktop widget** in small, medium and large sizes. Customize primary memory/storage metric and whether Clean and VPN action links are displayed in medium/large layouts.
 - SwiftUI desktop dashboard and menu-bar quick stats for physical RAM and disk usage.
 - **Reversible Safe Cleanup**: scans *only* `~/Library/Logs` for `.log` and `.txt` files older than 14 days (max 50 MB each), previews findings, asks for confirmation, and moves selected eligible files to Trash. No cache destruction, password clearing, system-file modification, `sudo`, or automatic deletion.
 - **Exact Duplicate Finder**: choose a folder; compare same-sized files using SHA-256, report duplicate groups read-only (limit 3,000 files; individual files under 200 MB). No automatic deletion.
@@ -27,7 +27,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.4.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & VPN**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v0.5.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -43,13 +43,13 @@ The widget extension is embedded inside `MacPulse.app`. If it does not appear im
 
 ## Roadmap
 
-V0.4: CPU tick activity, battery level/state, public thermal state, hardware network traffic with in-app time series charts.
-V0.5: customizable widgets and better dashboard layouts.
+V0.5: CPU tick activity, battery level/state, public thermal state, hardware network traffic with in-app time series charts.
+V0.5: AppIntent-configurable WidgetKit panels, with three sizes, a primary memory/storage metric, and optional quick-action links.
 V0.6+: verifiable security diagnostics, VPN/network improvements, app review and developer tools. No independent VPN server or unverified antivirus claims.
 
 MIT licensed. Please evaluate cleanup selections before confirming.
 
-## Performance dashboard (new in v0.4)
+## Performance dashboard (new in v0.5)
 
 Click **Performance** in the sidebar to view measured CPU activity, CPU history, battery percentage and charging status, thermal pressure as reported by `ProcessInfo.thermalState`, and estimated upload/download rates for hardware `en*` interfaces.
 
@@ -60,3 +60,14 @@ Click **Performance** in the sidebar to view measured CPU activity, CPU history,
 - The app keeps up to 120 CPU/network samples **only in memory**, approximately 30 minutes at 15-second intervals. There is no background analytics, storage or upload. Charts reset when the app quits.
 
 As before, this monitoring never force-quits applications, purges RAM, or deletes files without user review.
+
+## Customizable widgets (new in v0.5)
+
+After installing the updated app, right-click the desktop and choose **Edit Widgets**, then add a **MacPulse · Memory & System** widget in the small, medium or large layout. Right-click a placed widget and choose **Edit Widget**:
+
+- **Primary metric:** Memory in use (estimated) or storage used. Small and medium sizes emphasize this choice; the large layout shows both.
+- **Show quick actions:** Turn the Clean and VPN action links on or off on medium and large layouts. These buttons open MacPulse's review or connection controls and **never** silently delete data or establish a VPN.
+
+The small widget has one tap target, opening the configured metric in MacPulse. Medium/large widgets provide separate links. WidgetKit refreshes under macOS scheduling, so these are periodic snapshots (approximately 5 minutes requested), not live CPU-speed panels. The full MacPulse app supplies faster 15-second CPU/network updates.
+
+Configuration is stored by the system via AppIntents, not sent to a server. The widget does not need a new privacy entitlement.
