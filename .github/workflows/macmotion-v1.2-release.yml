@@ -1,4 +1,4 @@
-name: Publish MacMotion v1.2
+name: Publish MacMotion v1.3
 
 on:
   workflow_run:
@@ -15,7 +15,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Get MacMotion v1.2 DMG from successful macOS build
+      - name: Get MacMotion v1.3 DMG from successful macOS build
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
@@ -26,19 +26,19 @@ jobs:
           fi
           test -n "$RUN_ID"
           gh run download "$RUN_ID" --repo sujanmj/macapp --name macmotion-dmg --dir dist
-          test -s dist/MacMotion-v1.2.dmg
-          sha256sum dist/MacMotion-v1.2.dmg
+          test -s dist/MacMotion-v1.3.dmg
+          sha256sum dist/MacMotion-v1.3.dmg
 
-      - name: Publish MacMotion v1.2 release asset
+      - name: Publish MacMotion v1.3 release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view macmotion-v1.2 --repo sujanmj/macapp >/dev/null 2>&1; then
-            gh release upload macmotion-v1.2 dist/MacMotion-v1.2.dmg --clobber --repo sujanmj/macapp
+          if gh release view macmotion-v1.3 --repo sujanmj/macapp >/dev/null 2>&1; then
+            gh release upload macmotion-v1.3 dist/MacMotion-v1.3.dmg --clobber --repo sujanmj/macapp
           else
-            gh release create macmotion-v1.2 dist/MacMotion-v1.2.dmg \
+            gh release create macmotion-v1.3 dist/MacMotion-v1.3.dmg \
               --repo sujanmj/macapp \
               --target "${GITHUB_SHA}" \
-              --title "MacMotion v1.2 — Screen Saver" \
+              --title "MacMotion v1.3 — Screen Saver" \
               --notes "Adds an installable MacMotion.saver plug-in and menu-bar installation action. Open System Settings → Wallpaper → Screen Saver… → Custom to select it. Wallpaper-gallery integration and animated lock screen are not included. Unsigned/unnotarized developer build."
           fi

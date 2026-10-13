@@ -9,9 +9,16 @@ targets:
     platform: macOS
     sources:
       - Sources/LumaFlow
+      - Assets.xcassets
+    preBuildScripts:
+      - name: Generate LumaFlow App Icon
+        script: bash "$SRCROOT/scripts/generate-icons.sh"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.lumaflow
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: '0.2.0'
+        CURRENT_PROJECT_VERSION: '2'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         GENERATE_INFOPLIST_FILE: YES

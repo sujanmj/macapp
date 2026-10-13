@@ -1,0 +1,32 @@
+name: Commit generated app icons
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'macmotion/Artwork/**'
+      - 'lumaflow/Artwork/**'
+      - '.github/workflows/icon-assets.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  render:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install librsvg
+      - run: |
+          bash macmotion/scripts/generate-icons.sh
+          bash lumaflow/scripts/generate-icons.sh
+          mkdir -p macmotion/Resources
+          rsvg-convert -w 256 -h 160 macmotion/Artwork/ScreenSaverThumbnail.svg > macmotion/Resources/thumbnail.png
+          rsvg-convert -w 512 -h 320 macmotion/Artwork/ScreenSaverThumbnail.svg > macmotion/Resources/thumbnail@2x.png
+      - name: Commit PNG icon assets for local Xcode builds
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f macmotion/Assets.xcassets lumaflow/Assets.xcassets macmotion/Resources/thumbnail.png macmotion/Resources/thumbnail@2x.png
+          if ! git diff --cached --quiet; then
+            git commit -m "Add rendered MacMotion and LumaFlow app icons"
+            git push origin HEAD:main
+          fi

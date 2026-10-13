@@ -18,7 +18,8 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ note: Notification) {
         NSApp.setActivationPolicy(.accessory)
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "◐"
+        item.button?.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "LumaFlow")
+        item.button?.image?.isTemplate = true
         item.button?.toolTip = "LumaFlow · content-aware brightness"
         baseline = brightness.read() ?? 0.65
         sampler.onSample = { [weak self] value in self?.process(value) }

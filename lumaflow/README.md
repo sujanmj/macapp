@@ -6,7 +6,7 @@ LumaFlow uses ScreenCaptureKit to sample an approximately 160×100 representatio
 
 ## Build (macOS 14+, Apple Silicon)
 
-Install Xcode and XcodeGen (`brew install xcodegen`), then from this directory:
+Install Xcode, XcodeGen, and librsvg (`brew install xcodegen librsvg`), then from this directory:
 
 ```sh
 xcodegen generate
@@ -15,7 +15,9 @@ open LumaFlow.xcodeproj
 
 Press Cmd+R. Click **◐** in the menu bar and choose **Enable Auto Brightness**. macOS requires Screen Recording permission: System Settings → Privacy & Security → Screen & System Audio Recording. Restart the app after granting permission if needed.
 
-To make a DMG: `bash scripts/package-dmg.sh`.
+To make a DMG: `bash scripts/package-dmg.sh` (outputs `LumaFlow-v0.2.dmg`).
+
+LumaFlow v0.2 adds a high-resolution app icon (half-lit sun) and a native system-symbol menu bar icon.
 
 ## Important limitations
 

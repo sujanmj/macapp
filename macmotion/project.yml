@@ -9,9 +9,16 @@ targets:
     platform: macOS
     sources:
       - Sources/MacMotion
+      - Assets.xcassets
+    preBuildScripts:
+      - name: Generate MacMotion App Icon
+        script: bash "$SRCROOT/scripts/generate-icons.sh"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.macmotion.wallpaper
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: '1.3.0'
+        CURRENT_PROJECT_VERSION: '3'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         GENERATE_INFOPLIST_FILE: YES

@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 command -v xcodegen >/dev/null || { echo "Install xcodegen: brew install xcodegen"; exit 1; }
+bash scripts/generate-icons.sh
 xcodegen generate
 xcodebuild \
   -project MacMotion.xcodeproj -scheme MacMotion \
@@ -21,6 +22,6 @@ ditto "$saver" "$stage/MacMotion.saver"
 ln -s /Applications "$stage/Applications"
 hdiutil create \
   -volname "MacMotion" -srcfolder "$stage" -ov -format UDZO \
-  "$PWD/MacMotion-v1.2.dmg"
-hdiutil verify "$PWD/MacMotion-v1.2.dmg"
-echo "DMG ready: $PWD/MacMotion-v1.2.dmg"
+  "$PWD/MacMotion-v1.3.dmg"
+hdiutil verify "$PWD/MacMotion-v1.3.dmg"
+echo "DMG ready: $PWD/MacMotion-v1.3.dmg"

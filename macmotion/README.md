@@ -1,4 +1,4 @@
-# MacMotion v1.2
+# MacMotion v1.3
 
 **MacMotion** is a free native macOS menu-bar live wallpaper app with a **separate, installable screen saver**.
 
@@ -6,18 +6,19 @@
 - Select a video in the MacMotion menu-bar app. That same video is used by the screen saver.
 - Installs `MacMotion.saver` into `~/Library/Screen Savers/` to appear in **System Settings → Wallpaper → Screen Saver… → Custom**.
 - Supports Apple Silicon (arm64) and macOS 14+; built and packaged with Xcode and XcodeGen.
+- Distinct colorful MacMotion app icon, a Finder icon for the .saver bundle, and a System Settings screen-saver preview tile.
 - Offline, no advertisements or tracking.
 
 ## Build & package
 
 ```sh
-brew install xcodegen
+brew install xcodegen librsvg
 git clone https://github.com/sujanmj/macapp.git
 cd macapp/macmotion
 bash scripts/package-dmg.sh
 ```
 
-This creates `MacMotion-v1.2.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
+This creates `MacMotion-v1.3.dmg` containing `MacMotion.app`, `MacMotion.saver`, and an Applications shortcut.
 
 ## Install and enable
 

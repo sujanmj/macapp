@@ -63,7 +63,8 @@ private final class MacMotionApp: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "◉"
+        statusItem.button?.image = NSImage(systemSymbolName: "play.rectangle.fill", accessibilityDescription: "MacMotion")
+        statusItem.button?.image?.isTemplate = true
         statusItem.button?.toolTip = "MacMotion Live Wallpaper"
         if UserDefaults.standard.object(forKey: pauseOnLowPowerKey) == nil {
             UserDefaults.standard.set(true, forKey: pauseOnLowPowerKey)
