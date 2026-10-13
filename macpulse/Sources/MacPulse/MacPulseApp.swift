@@ -4,6 +4,7 @@ import SwiftUI
 enum PulsePage: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case memory = "Memory Cleaner"
+    case storage = "Storage Analyzer"
     case cleanup = "Safe Cleanup"
     case duplicates = "Duplicates"
     case vpn = "VPN"
@@ -13,6 +14,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
         switch self {
         case .dashboard: return "gauge.with.dots.needle.67percent"
         case .memory: return "memorychip"
+        case .storage: return "externaldrive"
         case .cleanup: return "trash.slash"
         case .duplicates: return "doc.on.doc"
         case .vpn: return "network.badge.shield.half.filled"
@@ -25,6 +27,9 @@ enum PulsePage: String, CaseIterable, Identifiable {
 final class PulseStore: ObservableObject {
     @Published var stats = SystemSnapshot.read()
     @Published var cleanup: [CleanupCandidate] = []
+    @Published var storageResult: StorageScanResult?
+    @Published var selectedStoragePaths: Set<String> = []
+
     @Published var memoryApps: [RunningAppMemory] = []
     @Published var warpStatus: String?
     @Published var duplicates: [DuplicateGroup] = []
@@ -59,10 +64,66 @@ final class PulseStore: ObservableObject {
         case "clean": requestedPage = .memory; refresh()
         case "vpn": requestedPage = .vpn; refresh()
         case "duplicates": requestedPage = .duplicates
+        case "storage": requestedPage = .storage
         default: requestedPage = .dashboard
         }
         NSApp.activate(ignoringOtherApps: true)
     }
+    func chooseStorageFolder() {
+        let dialog = NSOpenPanel()
+        dialog.title = "Choose a folder to analyze without changing anything"
+        dialog.prompt = "Analyze Folder"
+        dialog.canChooseFiles = false
+        dialog.canChooseDirectories = true
+        dialog.canCreateDirectories = false
+        guard dialog.runModal() == .OK, let folder = dialog.url else { return }
+        analyze(folder: folder)
+    }
+
+    func analyze(folder: URL) {
+        busy = true
+        storageResult = nil
+        selectedStoragePaths.removeAll()
+        message = "Scanning \(folder.lastPathComponent) — read-only, up to 20,000 entries…"
+        Task.detached(priority: .utility) {
+            let result = StorageAnalyzer.scan(folder)
+            await MainActor.run {
+                self.storageResult = result
+                self.busy = false
+                self.message = "Scanned \(result.files.count) regular files" +
+                    (result.wasLimited ? " (20,000-entry safety limit reached)." : ".")
+            }
+        }
+    }
+
+    func toggleStorageFile(_ entry: StorageEntry) {
+        if selectedStoragePaths.contains(entry.id) {
+            selectedStoragePaths.remove(entry.id)
+        } else {
+            selectedStoragePaths.insert(entry.id)
+        }
+    }
+
+    func trashSelectedStorage() {
+        guard let report = storageResult else { return }
+        let chosen = report.files.filter { selectedStoragePaths.contains($0.id) }
+        guard !chosen.isEmpty else { return }
+        let total = chosen.reduce(UInt64(0)) { $0 + $1.size }
+        let warning = NSAlert()
+        warning.alertStyle = .warning
+        warning.messageText = "Move \(chosen.count) selected files to Trash?"
+        warning.informativeText = "Selected: \(SystemSnapshot.bytes(total)) from \(report.folder.path). Files will be rechecked for path and size before moving. This may affect files used by other apps. You can restore them from Trash."
+        warning.addButton(withTitle: "Move Selected Files to Trash")
+        warning.addButton(withTitle: "Cancel")
+        guard warning.runModal() == .alertFirstButtonReturn else { return }
+        busy = true
+        StorageAnalyzer.moveToTrash(chosen, root: report.folder) { result in
+            self.busy = false
+            self.message = result
+            self.analyze(folder: report.folder)
+        }
+    }
+
     func scanLogs() {
         busy = true
         Task.detached(priority: .utility) {
@@ -204,6 +265,7 @@ struct MainView: View {
                     switch selected {
                     case .dashboard: dashboard
                     case .memory: memory
+                    case .storage: storage
                     case .cleanup: cleanup
                     case .duplicates: duplicates
                     case .vpn: vpn
@@ -241,6 +303,7 @@ struct MainView: View {
                 Button("VPN") { selected = .vpn; store.refresh() }
                     .buttonStyle(.bordered)
                 Button("Find Duplicates") { selected = .duplicates }
+                Button("Analyze Storage") { selected = .storage }
             }
             Text("All processing is on your Mac. No account, subscriptions, telemetry or cloud scans.")
                 .foregroundStyle(.secondary).font(.caption)
@@ -270,6 +333,98 @@ struct MainView: View {
                 }
                 .padding(9)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    @State private var minimumFileMB: Double = 50
+
+    private var storage: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Storage Analyzer · Read-only until confirmed").font(.title2.bold())
+            Text("Choose a folder to examine. MacPulse never scans system locations automatically. It skips hidden files, symlinks, and app packages, with a 20,000-entry limit; results are estimates rather than total disk usage.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Choose Folder…") { store.chooseStorageFolder() }
+                    .buttonStyle(.borderedProminent)
+                if let result = store.storageResult {
+                    Button("Rescan") { store.analyze(folder: result.folder) }
+                        .disabled(store.busy)
+                    Button("Open Folder in Finder") { NSWorkspace.shared.open(result.folder) }
+                }
+            }
+            if store.busy { ProgressView("Scanning…") }
+            if let report = store.storageResult {
+                Text(report.folder.path).font(.caption).textSelection(.enabled)
+                HStack {
+                    Text("Measured files: \(SystemSnapshot.bytes(report.totalBytes))")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(report.files.count) regular files")
+                        .foregroundStyle(.secondary)
+                }
+                if report.wasLimited {
+                    Label("20,000-entry limit reached; this is a partial scan.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+                ForEach(report.categoryTotals, id: \.category) { item in
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text(item.category.rawValue)
+                            Spacer()
+                            Text("\(item.count) files · \(SystemSnapshot.bytes(item.size))")
+                                .foregroundStyle(.secondary)
+                        }
+                        ProgressView(value: report.totalBytes > 0 ?
+                            Double(item.size) / Double(report.totalBytes) : 0)
+                    }
+                }
+                Divider()
+                HStack {
+                    Text("Largest files").font(.title3.bold())
+                    Spacer()
+                    Text("Min size: \(Int(minimumFileMB)) MB").font(.caption)
+                    Slider(value: $minimumFileMB, in: 0...1000, step: 25)
+                        .frame(width: 150)
+                }
+                Text("Select individual files before moving any to Trash. The list shows at most 250 matching files; scan results never trigger automatic deletion.")
+                    .font(.caption).foregroundStyle(.secondary)
+                let large = report.biggest.filter { $0.size >= UInt64(minimumFileMB * 1_048_576) }
+                if large.isEmpty {
+                    Text("No matching files in this folder. Lower the minimum size to see smaller files.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(large.prefix(250)) { item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Button {
+                            store.toggleStorageFile(item)
+                        } label: {
+                            Image(systemName: store.selectedStoragePaths.contains(item.id) ?
+                                  "checkmark.square.fill" : "square")
+                        }
+                        .buttonStyle(.borderless)
+                        VStack(alignment: .leading) {
+                            Text(item.url.lastPathComponent).lineLimit(1).help(item.url.path)
+                            Text(item.url.path).font(.caption2).foregroundStyle(.secondary)
+                                .lineLimit(1).textSelection(.enabled)
+                        }
+                        Spacer()
+                        Text(SystemSnapshot.bytes(item.size))
+                            .font(.callout.monospacedDigit())
+                    }
+                }
+                let selectedCount = store.selectedStoragePaths.count
+                HStack {
+                    Text("\(selectedCount) selected · " +
+                         SystemSnapshot.bytes(report.files.filter {
+                             store.selectedStoragePaths.contains($0.id)
+                         }.reduce(0) { $0 + $1.size }))
+                        .font(.callout)
+                    Spacer()
+                    Button("Move Selected to Trash…") { store.trashSelectedStorage() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedCount == 0 || store.busy)
+                }
             }
         }
     }
@@ -413,6 +568,7 @@ struct MacPulseApp: App {
             Divider()
             Button("Clean · Review Memory") { store.route(URL(string: "macpulse://clean")!) }
             Button("VPN Controls") { store.route(URL(string: "macpulse://vpn")!) }
+            Button("Storage Analyzer") { store.route(URL(string: "macpulse://storage")!) }
             Button("Refresh") { store.refresh() }
             Divider()
             Link("About / Releases", destination: URL(string: "https://github.com/sujanmj/macapp/releases")!)
