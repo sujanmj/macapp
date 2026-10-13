@@ -10,6 +10,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
     case cleanup = "Safe Cleanup"
     case duplicates = "Duplicates"
     case vpn = "VPN"
+    case security = "Security Center"
     case tools = "More Tools"
     var id: String { rawValue }
     var icon: String {
@@ -21,6 +22,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
         case .cleanup: return "trash.slash"
         case .duplicates: return "doc.on.doc"
         case .vpn: return "network.badge.shield.half.filled"
+        case .security: return "lock.shield"
         case .tools: return "wrench.and.screwdriver"
         }
     }
@@ -40,6 +42,9 @@ final class PulseStore: ObservableObject {
     @Published var warpStatus: String?
     @Published var duplicates: [DuplicateGroup] = []
     @Published var vpn: [VPNService] = []
+    @Published var securityChecks: [SecurityFinding] = []
+    @Published var securityScanTime: Date?
+    @Published var isCheckingSecurity = false
     @Published var busy = false
     @Published var message = ""
     @Published var requestedPage: PulsePage?
@@ -76,11 +81,25 @@ final class PulseStore: ObservableObject {
             warpStatus = nil
         }
     }
+    func scanSecurity() {
+        guard !isCheckingSecurity else { return }
+        isCheckingSecurity = true
+        Task.detached(priority: .utility) {
+            let results = SecurityDiagnostics.scan()
+            await MainActor.run {
+                self.securityChecks = results
+                self.securityScanTime = Date()
+                self.isCheckingSecurity = false
+            }
+        }
+    }
+
     func route(_ url: URL) {
         guard url.scheme?.lowercased() == "macpulse" else { return }
         switch url.host?.lowercased() {
         case "clean": requestedPage = .memory; refresh()
         case "vpn": requestedPage = .vpn; refresh()
+        case "security": requestedPage = .security; scanSecurity()
         case "duplicates": requestedPage = .duplicates
         case "storage": requestedPage = .storage
         default: requestedPage = .dashboard
@@ -288,6 +307,7 @@ struct MainView: View {
                     case .cleanup: cleanup
                     case .duplicates: duplicates
                     case .vpn: vpn
+                    case .security: security
                     case .tools: tools
                     }
                     if !store.message.isEmpty {
@@ -304,6 +324,11 @@ struct MainView: View {
             if let newValue { selected = newValue }
         }
         .onOpenURL(perform: store.route)
+        .onChange(of: selected) { page in
+            if page == .security && store.securityChecks.isEmpty {
+                store.scanSecurity()
+            }
+        }
     }
 
     private var dashboard: some View {
@@ -348,6 +373,7 @@ struct MainView: View {
                     .buttonStyle(.bordered)
                 Button("Find Duplicates") { selected = .duplicates }
                 Button("Analyze Storage") { selected = .storage }
+                Button("Security Check") { selected = .security; store.scanSecurity() }
             }
             Text("All processing is on your Mac. No account, subscriptions, telemetry or cloud scans.")
                 .foregroundStyle(.secondary).font(.caption)
@@ -660,6 +686,49 @@ struct MainView: View {
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
             Button("Open macOS Network Settings") { VPNControl.openSettings() }
+        }
+    }
+
+    private var security: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("macOS Security & Privacy Diagnostics").font(.title2.bold())
+            Text("Read-only local checks of FileVault, Firewall, Gatekeeper, System Integrity Protection, and automatic update checking. MacPulse is not an antivirus and cannot guarantee a computer is malware-free.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Run Security Checks") { store.scanSecurity() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.isCheckingSecurity)
+                if store.isCheckingSecurity { ProgressView("Checking…") }
+                Spacer()
+                if let scanned = store.securityScanTime {
+                    Text("Last checked \(scanned.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            ForEach(store.securityChecks) { check in
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Label(check.title, systemImage: check.status.icon)
+                            .font(.headline)
+                        Spacer()
+                        Text(check.status.rawValue)
+                            .font(.subheadline.bold())
+                    }
+                    Text(check.detail).font(.callout)
+                    Text(check.nextStep).font(.caption).foregroundStyle(.secondary)
+                    Button("Review in System Settings…") {
+                        SecurityDiagnostics.openSettings(for: check.id)
+                    }
+                    .font(.callout)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }
+            if !store.securityChecks.isEmpty {
+                Text("An unavailable check is not proof that a protection is disabled. Security settings can change; use Apple System Settings to verify. This report does not access protected TCC databases or inspect malware.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 
