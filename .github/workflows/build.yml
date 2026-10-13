@@ -6,7 +6,6 @@ on:
     paths:
       - 'macmotion/**'
       - 'lumaflow/**'
-      - 'macpulse/**'
       - '.github/workflows/build.yml'
 concurrency:
   group: build-macos-${{ github.ref }}
@@ -22,8 +21,6 @@ jobs:
             dmg: MacMotion-v1.8.dmg
           - app: lumaflow
             dmg: LumaFlow-v0.8.dmg
-          - app: macpulse
-            dmg: MacPulse-v0.3.dmg
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen librsvg

@@ -1,7 +1,7 @@
 name: Publish MacPulse DMG
 on:
   workflow_run:
-    workflows: ["Build macOS apps"]
+    workflows: ["Build MacPulse"]
     types: [completed]
   workflow_dispatch:
 
@@ -22,7 +22,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           if [ -z "$RUN_ID" ]; then
-            RUN_ID=$(gh run list --repo sujanmj/macapp --workflow build.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+            RUN_ID=$(gh run list --repo sujanmj/macapp --workflow macpulse-build.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
           gh run download "$RUN_ID" --repo sujanmj/macapp --name macpulse-dmg --dir dist
           test -s dist/MacPulse-v0.3.dmg

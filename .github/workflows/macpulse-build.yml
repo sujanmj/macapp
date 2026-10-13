@@ -1,0 +1,28 @@
+name: Build MacPulse
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'macpulse/**'
+      - '.github/workflows/macpulse-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: macpulse-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install xcodegen librsvg
+      - name: Build, sign and verify MacPulse DMG
+        run: bash macpulse/scripts/package-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macpulse-dmg
+          path: |
+            macpulse/MacPulse-v0.3.dmg
+            macpulse/MacPulse-v0.3.dmg.sha256
