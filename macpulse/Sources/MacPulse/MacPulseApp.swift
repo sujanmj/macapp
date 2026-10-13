@@ -1,0 +1,331 @@
+import AppKit
+import SwiftUI
+
+enum PulsePage: String, CaseIterable, Identifiable {
+    case dashboard = "Dashboard"
+    case cleanup = "Safe Cleanup"
+    case duplicates = "Duplicates"
+    case vpn = "VPN"
+    case tools = "More Tools"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .dashboard: return "gauge.with.dots.needle.67percent"
+        case .cleanup: return "trash.slash"
+        case .duplicates: return "doc.on.doc"
+        case .vpn: return "network.badge.shield.half.filled"
+        case .tools: return "wrench.and.screwdriver"
+        }
+    }
+}
+
+@MainActor
+final class PulseStore: ObservableObject {
+    @Published var stats = SystemSnapshot.read()
+    @Published var cleanup: [CleanupCandidate] = []
+    @Published var duplicates: [DuplicateGroup] = []
+    @Published var vpn: [VPNService] = []
+    @Published var busy = false
+    @Published var message = ""
+    @Published var requestedPage: PulsePage?
+    private var timer: Timer?
+
+    init() {
+        refresh()
+        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
+        }
+    }
+    func refresh() {
+        stats = SystemSnapshot.read()
+        vpn = VPNControl.list()
+    }
+    func route(_ url: URL) {
+        guard url.scheme?.lowercased() == "macpulse" else { return }
+        switch url.host?.lowercased() {
+        case "clean": requestedPage = .cleanup; scanLogs()
+        case "vpn": requestedPage = .vpn; refresh()
+        case "duplicates": requestedPage = .duplicates
+        default: requestedPage = .dashboard
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    func scanLogs() {
+        busy = true
+        Task.detached(priority: .utility) {
+            let result = SafeCleanup.scan()
+            await MainActor.run {
+                self.cleanup = result
+                self.busy = false
+                self.message = "Found \(result.count) old user log files. Review before cleaning."
+            }
+        }
+    }
+    func trashOldLogs() {
+        guard !cleanup.isEmpty else { return }
+        let bytes = cleanup.reduce(UInt64(0)) { $0 + $1.size }
+        let warning = NSAlert()
+        warning.alertStyle = .warning
+        warning.messageText = "Move \(cleanup.count) old log files to Trash?"
+        warning.informativeText = "Total: \(SystemSnapshot.bytes(bytes)). Only .log/.txt files older than 14 days in ~/Library/Logs are affected. No permanent deletion. Some apps may recreate logs."
+        warning.addButton(withTitle: "Move to Trash")
+        warning.addButton(withTitle: "Cancel")
+        guard warning.runModal() == .alertFirstButtonReturn else { return }
+        busy = true
+        SafeCleanup.trash(cleanup) { outcome in
+            self.busy = false
+            self.message = outcome
+            self.scanLogs()
+            self.refresh()
+        }
+    }
+    func chooseDuplicatesFolder() {
+        let picker = NSOpenPanel()
+        picker.canChooseFiles = false
+        picker.canChooseDirectories = true
+        picker.canCreateDirectories = false
+        picker.prompt = "Scan Read-Only"
+        guard picker.runModal() == .OK, let folder = picker.url else { return }
+        busy = true
+        message = "Scanning \(folder.lastPathComponent) for exact duplicate files..."
+        Task.detached(priority: .utility) {
+            let result = DuplicateFinder.scan(folder)
+            await MainActor.run {
+                self.duplicates = result
+                self.busy = false
+                self.message = "Found \(result.count) exact duplicate groups. No files were deleted."
+            }
+        }
+    }
+    func toggleVPN(_ service: VPNService) {
+        busy = true
+        Task.detached(priority: .userInitiated) {
+            let result: String
+            do {
+                try VPNControl.toggle(service)
+                result = "Requested \(service.connected ? "disconnect" : "connect") for \(service.name). Confirm status in macOS."
+            } catch {
+                result = "VPN control failed: \(error.localizedDescription)"
+            }
+            await MainActor.run {
+                self.busy = false
+                self.message = result
+                self.refresh()
+            }
+        }
+    }
+}
+
+struct StatTile: View {
+    let title: String
+    let used: UInt64
+    let total: UInt64
+    let symbol: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: symbol).font(.headline)
+            Text(SystemSnapshot.bytes(used))
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+            Text("of \(SystemSnapshot.bytes(total))")
+                .font(.caption).foregroundStyle(.secondary)
+            ProgressView(value: total > 0 ? Double(used) / Double(total) : 0)
+                .tint(.cyan)
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+struct MainView: View {
+    @ObservedObject var store: PulseStore
+    @State private var selected: PulsePage = .dashboard
+    var body: some View {
+        NavigationSplitView {
+            List(PulsePage.allCases, selection: $selected) { page in
+                Label(page.rawValue, systemImage: page.icon)
+                    .tag(page)
+            }
+            .navigationTitle("MacPulse")
+            .frame(minWidth: 185)
+        } detail: {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack {
+                        Text(selected.rawValue).font(.largeTitle.bold())
+                        Spacer()
+                        Button { store.refresh() } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                    }
+                    switch selected {
+                    case .dashboard: dashboard
+                    case .cleanup: cleanup
+                    case .duplicates: duplicates
+                    case .vpn: vpn
+                    case .tools: tools
+                    }
+                    if !store.message.isEmpty {
+                        Text(store.message).font(.callout).foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(26)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(minWidth: 850, minHeight: 560)
+        .onChange(of: store.requestedPage) { newValue in
+            if let newValue { selected = newValue }
+        }
+        .onOpenURL(perform: store.route)
+    }
+
+    private var dashboard: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                StatTile(title: "Memory in use · estimated", used: store.stats.usedMemory,
+                         total: store.stats.totalMemory, symbol: "memorychip")
+                StatTile(title: "Disk space used", used: store.stats.totalDisk - store.stats.freeDisk,
+                         total: store.stats.totalDisk, symbol: "internaldrive")
+            }
+            Text("macOS manages available RAM automatically. MacPulse never runs memory-purging commands or terminates apps without permission.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack(spacing: 14) {
+                Button("Clean · Review Logs") { selected = .cleanup; store.scanLogs() }
+                    .buttonStyle(.borderedProminent)
+                Button("VPN") { selected = .vpn; store.refresh() }
+                    .buttonStyle(.bordered)
+                Button("Find Duplicates") { selected = .duplicates }
+            }
+            Text("All processing is on your Mac. No account, subscriptions, telemetry or cloud scans.")
+                .foregroundStyle(.secondary).font(.caption)
+        }
+    }
+
+    private var cleanup: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Reversible cleanup").font(.title2.bold())
+            Text("Scans only your own log files older than 14 days under ~/Library/Logs. Nothing is deleted automatically; selected files move to Trash after confirmation.")
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Scan Old Logs") { store.scanLogs() }
+                Button("Clean · Move to Trash") { store.trashOldLogs() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.cleanup.isEmpty || store.busy)
+            }
+            Text("\(store.cleanup.count) eligible files · \(SystemSnapshot.bytes(store.cleanup.reduce(0) { $0 + $1.size }))")
+                .font(.headline)
+            ForEach(store.cleanup.prefix(100)) { entry in
+                HStack {
+                    Image(systemName: "doc.text")
+                    Text(entry.url.lastPathComponent).lineLimit(1)
+                    Spacer()
+                    Text(SystemSnapshot.bytes(entry.size))
+                        .foregroundStyle(.secondary)
+                }
+                .help(entry.url.path)
+            }
+        }
+    }
+
+    private var duplicates: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Find exact duplicates").font(.title2.bold())
+            Text("Pick a folder to scan. SHA-256 comparisons find identical files regardless of name. The first 3,000 files up to 200 MB each are checked; nothing is removed.")
+                .foregroundStyle(.secondary)
+            Button("Choose Folder to Scan") { store.chooseDuplicatesFolder() }
+                .disabled(store.busy)
+            if store.busy { ProgressView() }
+            ForEach(store.duplicates) { group in
+                VStack(alignment: .leading) {
+                    Text("\(group.urls.count) copies · \(SystemSnapshot.bytes(group.size)) each")
+                        .font(.headline)
+                    ForEach(group.urls, id: \.path) { url in
+                        Text(url.path).font(.caption).textSelection(.enabled)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    private var vpn: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("VPN · existing macOS connections").font(.title2.bold())
+            Text("MacPulse can start or stop an already configured macOS VPN. It does not include a VPN server, free bandwidth, account credentials, or a new tunnel provider.")
+                .foregroundStyle(.secondary)
+            if store.vpn.isEmpty {
+                Label("No compatible VPN configuration detected", systemImage: "network.slash")
+                    .foregroundStyle(.orange)
+            }
+            ForEach(store.vpn) { service in
+                HStack {
+                    Image(systemName: service.connected ? "lock.shield.fill" : "lock.open")
+                    VStack(alignment: .leading) {
+                        Text(service.name).font(.headline)
+                        Text(service.status).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(service.connected ? "Disconnect" : "Connect") { store.toggleVPN(service) }
+                        .disabled(store.busy)
+                }
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+            HStack {
+                Button("Open macOS Network Settings") { VPNControl.openSettings() }
+                Link("Find Cloudflare WARP Free", destination: URL(string: "https://one.one.one.one/")!)
+            }
+            Text("Cloudflare WARP is a separate third-party service. A button alone cannot provide a VPN tunnel.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var tools: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Additional macOS tools").font(.title2.bold())
+            Button("Open Applications (review installed apps)") {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications"))
+            }
+            Button("Open Login Items & Extensions") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            Button("Open macOS Security Settings") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            Link("Check for MacPulse Updates", destination: URL(string: "https://github.com/sujanmj/macapp/releases")!)
+            Divider()
+            Text("Not yet provided: antivirus signatures and real-time malware protection, adware detection, browser ad blockers, password breach monitoring, automatic app uninstallation, and an independent VPN network.")
+                .foregroundStyle(.secondary)
+            Text("This version does not claim to scan for viruses or provide an anonymous network connection.")
+                .foregroundStyle(.orange).font(.callout)
+        }
+    }
+}
+
+@main
+struct MacPulseApp: App {
+    @StateObject private var store = PulseStore()
+    var body: some Scene {
+        WindowGroup("MacPulse") {
+            MainView(store: store)
+        }
+        .defaultSize(width: 900, height: 630)
+
+        MenuBarExtra("MacPulse", systemImage: "waveform.path.ecg") {
+            Text("Memory: \(SystemSnapshot.bytes(store.stats.usedMemory)) / \(SystemSnapshot.bytes(store.stats.totalMemory))")
+            Text("Disk free: \(SystemSnapshot.bytes(store.stats.freeDisk))")
+            Divider()
+            Button("Review Cleanup") { store.route(URL(string: "macpulse://clean")!) }
+            Button("VPN Controls") { store.route(URL(string: "macpulse://vpn")!) }
+            Button("Refresh") { store.refresh() }
+            Divider()
+            Link("About / Releases", destination: URL(string: "https://github.com/sujanmj/macapp/releases")!)
+        }
+    }
+}
