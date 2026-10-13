@@ -120,7 +120,7 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         } else {
             showAlert(
                 "Screen Recording diagnostic",
-                "Core Graphics reports permission is GRANTED.\\n\\nApp ID: \(Bundle.main.bundleIdentifier ?? "unknown")\\nApp path: \(Bundle.main.bundleURL.path)\\n\\nIf Enable Auto Brightness still fails, capture the full error message and check that you launched the current /Applications copy."
+                "Core Graphics reports permission is GRANTED.\n\nApp ID: \(Bundle.main.bundleIdentifier ?? "unknown")\nApp path: \(Bundle.main.bundleURL.path)\n\nIf Enable Auto Brightness still fails, capture the full error message and check that you launched the current /Applications copy."
             )
         }
     }
@@ -132,7 +132,7 @@ final class LumaFlowController: NSObject, NSApplicationDelegate {
         alert.messageText = "LumaFlow screen access needs a reset"
         alert.alertStyle = .warning
         alert.informativeText =
-            "\(reason)\\n\\nApp: \(appID)\\nPath: \(Bundle.main.bundleURL.path)\\n\\n1. Quit LumaFlow.\\n2. Run this command in Terminal:\\n\(command)\\n3. Open LumaFlow from /Applications and approve Screen Recording.\\n4. Restart the app if macOS requests it.\\n\\nThis resets only LumaFlow's screen permission."
+            "\(reason)\n\nApp: \(appID)\nPath: \(Bundle.main.bundleURL.path)\n\n1. Quit LumaFlow.\n2. Run this command in Terminal:\n\(command)\n3. Open LumaFlow from /Applications and approve Screen Recording.\n4. Restart the app if macOS requests it.\n\nThis resets only LumaFlow's screen permission."
         alert.addButton(withTitle: "Copy Reset Command")
         alert.addButton(withTitle: "Open Privacy Settings")
         alert.addButton(withTitle: "Close")
