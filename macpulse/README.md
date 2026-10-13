@@ -1,8 +1,8 @@
-# MacPulse v0.5 — Free Mac utility & desktop widget
+# MacPulse v0.6 — Free Mac utility & desktop widget
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
-## What's working in V0.5
+## What's working in V0.6
 
 - Native **WidgetKit desktop widget** in small, medium and large sizes. Customize primary memory/storage metric and whether Clean and VPN action links are displayed in medium/large layouts.
 - SwiftUI desktop dashboard and menu-bar quick stats for physical RAM and disk usage.
@@ -27,7 +27,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v0.5.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v0.6.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -43,13 +43,13 @@ The widget extension is embedded inside `MacPulse.app`. If it does not appear im
 
 ## Roadmap
 
-V0.5: CPU tick activity, battery level/state, public thermal state, hardware network traffic with in-app time series charts.
-V0.5: AppIntent-configurable WidgetKit panels, with three sizes, a primary memory/storage metric, and optional quick-action links.
-V0.6+: verifiable security diagnostics, VPN/network improvements, app review and developer tools. No independent VPN server or unverified antivirus claims.
+V0.6: CPU tick activity, battery level/state, public thermal state, hardware network traffic with in-app time series charts.
+V0.6: AppIntent-configurable WidgetKit panels, with three sizes, a primary memory/storage metric, and optional quick-action links.
+V0.6: read-only verification of FileVault, Firewall, Gatekeeper, SIP and automatic update checks. V0.7+: VPN/network improvements, app review and developer tools. No independent VPN server or unverified antivirus claims.
 
 MIT licensed. Please evaluate cleanup selections before confirming.
 
-## Performance dashboard (new in v0.5)
+## Performance dashboard (new in v0.6)
 
 Click **Performance** in the sidebar to view measured CPU activity, CPU history, battery percentage and charging status, thermal pressure as reported by `ProcessInfo.thermalState`, and estimated upload/download rates for hardware `en*` interfaces.
 
@@ -61,7 +61,7 @@ Click **Performance** in the sidebar to view measured CPU activity, CPU history,
 
 As before, this monitoring never force-quits applications, purges RAM, or deletes files without user review.
 
-## Customizable widgets (new in v0.5)
+## Customizable widgets (new in v0.6)
 
 After installing the updated app, right-click the desktop and choose **Edit Widgets**, then add a **MacPulse · Memory & System** widget in the small, medium or large layout. Right-click a placed widget and choose **Edit Widget**:
 
@@ -71,3 +71,17 @@ After installing the updated app, right-click the desktop and choose **Edit Widg
 The small widget has one tap target, opening the configured metric in MacPulse. Medium/large widgets provide separate links. WidgetKit refreshes under macOS scheduling, so these are periodic snapshots (approximately 5 minutes requested), not live CPU-speed panels. The full MacPulse app supplies faster 15-second CPU/network updates.
 
 Configuration is stored by the system via AppIntents, not sent to a server. The widget does not need a new privacy entitlement.
+
+## Security Center (new in v0.6)
+
+Click **Security Center** → **Run Security Checks**. MacPulse reads these statuses using built-in, fixed macOS tools (read-only, no administrator password required):
+
+- **FileVault:** `fdesetup status`
+- **Application Firewall:** `socketfilterfw --getglobalstate`
+- **Gatekeeper assessments:** `spctl --status`
+- **System Integrity Protection (SIP):** `csrutil status`
+- **Automatic software update checking:** `softwareupdate --schedule`
+
+Checks run only on request. Results are shown as Enabled, Review, or Unavailable; unavailable is **not** treated as disabled. Security checks link to the relevant macOS System Settings pages. Information may differ from current platform UI or enterprise device policies; confirm there before changing anything.
+
+**Not antivirus:** This does not scan downloaded apps for malware, detect spyware, audit TCC permissions, verify app signatures, or guarantee that a Mac is secure. No Apple security protections are turned off, no recovery keys are read, and no system settings are modified automatically.

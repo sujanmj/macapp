@@ -24,5 +24,5 @@ jobs:
         with:
           name: macpulse-dmg
           path: |
-            macpulse/MacPulse-v0.5.dmg
-            macpulse/MacPulse-v0.5.dmg.sha256
+            macpulse/MacPulse-v0.6.dmg
+            macpulse/MacPulse-v0.6.dmg.sha256

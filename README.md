@@ -12,7 +12,7 @@ Requires macOS 14+, Xcode, and `brew install xcodegen librsvg`.
 
 **Packaging:** `bash macmotion/scripts/package-dmg.sh` or `bash lumaflow/scripts/package-dmg.sh`.
 
-**Releases:** GitHub Actions builds MacMotion v1.8 LumaFlow v0.8, and MacPulse v0.5 DMGs independently, including their custom app icons.
+**Releases:** GitHub Actions builds MacMotion v1.8 LumaFlow v0.8, and MacPulse v0.6 DMGs independently, including their custom app icons.
 
 **Privacy:** LumaFlow requests Screen Recording access only when the user enables screen luminance analysis; it does not store or upload captures.
 
