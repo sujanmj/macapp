@@ -12,6 +12,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
     case vpn = "VPN"
     case security = "Security Center"
     case apps = "App Manager"
+    case developer = "Developer Tools"
     case tools = "More Tools"
     var id: String { rawValue }
     var icon: String {
@@ -25,6 +26,7 @@ enum PulsePage: String, CaseIterable, Identifiable {
         case .vpn: return "network.badge.shield.half.filled"
         case .security: return "lock.shield"
         case .apps: return "app.badge.checkmark"
+        case .developer: return "hammer"
         case .tools: return "wrench.and.screwdriver"
         }
     }
@@ -55,6 +57,9 @@ final class PulseStore: ObservableObject {
     @Published var outdatedCasks: [BrewOutdatedCask] = []
     @Published var scanningApps = false
     @Published var scanningCasks = false
+    @Published var developerReports: [DeveloperFolderReport] = []
+    @Published var developerTools: [DeveloperToolPresence] = []
+    @Published var scanningDeveloper = false
     @Published var busy = false
     @Published var message = ""
     @Published var requestedPage: PulsePage?
@@ -148,6 +153,27 @@ final class PulseStore: ObservableObject {
         }
     }
 
+    func scanDeveloperFolders() {
+        guard !scanningDeveloper else { return }
+        scanningDeveloper = true
+        Task.detached(priority: .utility) {
+            let results = DeveloperDiagnostics.scan()
+            let tools = DeveloperDiagnostics.installedTools()
+            await MainActor.run {
+                self.developerReports = results
+                self.developerTools = tools
+                self.scanningDeveloper = false
+                self.message = "Developer storage audit complete. All measured sizes are estimates; no files were changed."
+            }
+        }
+    }
+
+    func reviewDeveloperFolder(_ report: DeveloperFolderReport) {
+        guard report.exists else { return }
+        requestedPage = .storage
+        analyze(folder: report.url)
+    }
+
     func route(_ url: URL) {
         guard url.scheme?.lowercased() == "macpulse" else { return }
         switch url.host?.lowercased() {
@@ -155,6 +181,7 @@ final class PulseStore: ObservableObject {
         case "vpn": requestedPage = .vpn; refresh()
         case "security": requestedPage = .security; scanSecurity()
         case "apps": requestedPage = .apps; scanInstalledApps()
+        case "developer": requestedPage = .developer; scanDeveloperFolders()
         case "duplicates": requestedPage = .duplicates
         case "storage": requestedPage = .storage
         default: requestedPage = .dashboard
@@ -377,6 +404,7 @@ struct MainView: View {
                     case .vpn: vpn
                     case .security: security
                     case .apps: appManager
+                    case .developer: developer
                     case .tools: tools
                     }
                     if !store.message.isEmpty {
@@ -398,6 +426,7 @@ struct MainView: View {
                 store.scanSecurity()
             }
             if page == .apps && store.installedApps.isEmpty { store.scanInstalledApps() }
+            if page == .developer && store.developerReports.isEmpty { store.scanDeveloperFolders() }
         }
     }
 
@@ -904,6 +933,63 @@ struct MainView: View {
                     NSWorkspace.shared.open(url)
                 }
             }
+        }
+    }
+
+    private var developer: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Developer storage audit").font(.title2.bold())
+            Text("Only known developer folders in your home directory are scanned. MacPulse never runs docker prune, brew cleanup, npm clean, or deletes simulator data. All cleanup remains a file-by-file, user-confirmed choice in Storage Analyzer.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Scan Developer Folders") { store.scanDeveloperFolders() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.scanningDeveloper)
+                if store.scanningDeveloper { ProgressView("Scanning…") }
+            }
+            ForEach(store.developerReports) { folder in
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
+                        Text(folder.name).font(.headline)
+                        Spacer()
+                        if folder.exists {
+                            Text(SystemSnapshot.bytes(folder.measuredBytes))
+                                .font(.headline.monospacedDigit())
+                        } else {
+                            Text("Not found").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(folder.note).font(.callout).foregroundStyle(.secondary)
+                    if folder.exists {
+                        Text("\(folder.scannedFiles) measured files\(folder.partial ? " · partial scan (limit reached)" : "")")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(folder.url.path).font(.caption2).textSelection(.enabled)
+                        HStack {
+                            Button("Review Files…") { store.reviewDeveloperFolder(folder) }
+                            Button("Show in Finder") {
+                                NSWorkspace.shared.open(folder.url)
+                            }
+                        }
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }
+            Text("Developer tools detected in standard installation locations")
+                .font(.headline)
+            ForEach(store.developerTools) { tool in
+                HStack {
+                    Image(systemName: tool.installed ? "checkmark.circle" : "minus.circle")
+                    Text(tool.title)
+                    Spacer()
+                    Text(tool.location ?? "Not detected")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).textSelection(.enabled)
+                }
+            }
+            Text("A tool missing from this list might be installed in a custom location. Cache size estimates skip hidden files, symbolic links and packages, and stop at 20,000 entries per folder.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
