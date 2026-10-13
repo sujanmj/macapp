@@ -1,0 +1,38 @@
+name: Publish MacMotion DMG
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/release.yml'
+      - 'Sources/**'
+      - 'project.yml'
+      - 'scripts/package-dmg.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Check out MacMotion
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build and verify DMG
+        run: bash scripts/package-dmg.sh
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.1 >/dev/null 2>&1; then
+            gh release upload v1.1 MacMotion-v1.1.dmg --clobber
+          else
+            gh release create v1.1 MacMotion-v1.1.dmg \
+              --target "$GITHUB_SHA" \
+              --title "MacMotion v1.1" \
+              --notes "Free native macOS live wallpaper application with MP4/MOV support. This build is unsigned and not notarized."
+          fi
