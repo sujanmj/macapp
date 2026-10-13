@@ -11,7 +11,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
     case other = "Other"
     var id: String { rawValue }
 
-    static func classify(extension ext: String) -> StorageCategory {
+    static func classify(fileExtension ext: String) -> StorageCategory {
         switch ext.lowercased() {
         case "mov", "mp4", "m4v", "mkv", "avi", "webm": return .videos
         case "png", "jpg", "jpeg", "heic", "gif", "tiff", "webp", "raw": return .images
@@ -32,6 +32,13 @@ struct StorageEntry: Identifiable, Hashable {
     var id: String { url.path }
 }
 
+struct StorageCategoryUsage: Identifiable {
+    let category: StorageCategory
+    let size: UInt64
+    let count: Int
+    var id: StorageCategory { category }
+}
+
 struct StorageScanResult {
     let folder: URL
     let files: [StorageEntry]
@@ -39,11 +46,11 @@ struct StorageScanResult {
     let wasLimited: Bool
 
     var totalBytes: UInt64 { files.reduce(0) { $0 + $1.size } }
-    var categoryTotals: [(category: StorageCategory, size: UInt64, count: Int)] {
+    var categoryTotals: [StorageCategoryUsage] {
         StorageCategory.allCases.compactMap { category in
             let group = files.filter { $0.category == category }
             guard !group.isEmpty else { return nil }
-            return (category, group.reduce(0) { $0 + $1.size }, group.count)
+            return StorageCategoryUsage(category: category, size: group.reduce(0) { $0 + $1.size }, count: group.count)
         }.sorted { $0.size > $1.size }
     }
     var biggest: [StorageEntry] { files.sorted { $0.size > $1.size } }
@@ -82,7 +89,7 @@ enum StorageAnalyzer {
                   let fileSize = attrs.fileSize, fileSize >= 0 else { continue }
             let entry = StorageEntry(url: url, size: UInt64(fileSize),
                                      modified: attrs.contentModificationDate,
-                                     category: StorageCategory.classify(extension: url.pathExtension))
+                                     category: StorageCategory.classify(fileExtension: url.pathExtension))
             files.append(entry)
         }
         return StorageScanResult(folder: root, files: files, examinedCount: examined, wasLimited: limited)
