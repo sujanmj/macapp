@@ -1,0 +1,90 @@
+name: Build Desktop Utilities
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'macshelf/**'
+      - 'macswitch/**'
+      - 'macnotch/**'
+      - 'macvoice/**'
+      - 'shared/UtilityKit/**'
+      - 'scripts/package-utility.sh'
+      - 'scripts/generate-utility-icons.swift'
+      - 'scripts/check-utilities.sh'
+      - 'scripts/utility-smoke-tests.swift'
+      - '.github/workflows/desktop-utilities.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-utilities-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: MacShelf, folder: macshelf }
+          - { app: MacSwitch, folder: macswitch }
+          - { app: MacNotch, folder: macnotch }
+          - { app: MacVoice, folder: macvoice }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Verify file-reference safety and API response handling
+        run: bash scripts/check-utilities.sh
+      - name: Build universal app, sign and verify DMG
+        run: bash scripts/package-utility.sh '${{ matrix.app }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-dmg
+          if-no-files-found: error
+          path: |
+            ${{ matrix.folder }}/${{ matrix.app }}-v0.1.dmg
+            ${{ matrix.folder }}/${{ matrix.app }}-v0.1.dmg.sha256
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    strategy:
+      matrix:
+        app: [MacShelf, MacSwitch, MacNotch, MacVoice]
+    steps:
+      - name: Publish verified beta installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP: ${{ matrix.app }}
+        run: |
+          set -euo pipefail
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$APP-dmg" --dir dist
+          (cd dist && sha256sum -c "$APP-v0.1.dmg.sha256")
+          folder="$(echo "$APP" | tr '[:upper:]' '[:lower:]')"
+          tag="$folder-v0.1"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; preserving published assets."
+          else
+            cat > notes.md <<EOF
+          Native $APP v0.1 beta for macOS 14+, universal Apple Silicon and Intel.
+
+          Source and setup: https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA/$folder
+
+          Built from $GITHUB_SHA. Compilation, file-reference safety tests, signature/entitlement checks, both CPU architectures, DMG integrity and SHA-256 checksum passed before publication.
+
+          Beta limitations: real macOS permission prompts, drag/drop, window focus and voice/paste interactions still need device testing. GPT/cloud dictation/editing requires a user-provided OpenAI API key and separate API billing; live service accuracy was not tested. Siri opens Apple's own interface. These apps do not claim full Dropover/AltTab/Voicy feature parity.
+
+          Ad-hoc signed and unnotarized. macOS may require deliberate approval in Privacy & Security. Install through the DMG by dragging the app into Applications.
+          EOF
+            gh release create "$tag" "dist/$APP-v0.1.dmg" "dist/$APP-v0.1.dmg.sha256" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "$APP v0.1 — Native Mac Beta" --notes-file notes.md
+          fi

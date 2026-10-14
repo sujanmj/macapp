@@ -8,3 +8,9 @@
 **/*.dSYM/
 **/dmg/
 .DS_Store
+
+# Generated from the shared Swift icon renderer at build time.
+macshelf/Assets.xcassets/AppIcon.appiconset/icon-*.png
+macswitch/Assets.xcassets/AppIcon.appiconset/icon-*.png
+macnotch/Assets.xcassets/AppIcon.appiconset/icon-*.png
+macvoice/Assets.xcassets/AppIcon.appiconset/icon-*.png
