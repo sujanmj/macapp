@@ -25,7 +25,7 @@ trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/$name.app"
 ln -s /Applications "$stage/Applications"
 codesign --verify --deep --strict --verbose=2 "$stage/$name.app"
-lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/$name"
+lipo "$app/Contents/MacOS/$name" -verify_arch arm64 x86_64
 dmg="$PWD/$name-v0.1.dmg"
 hdiutil create -volname "$name" -srcfolder "$stage" -ov -format UDZO "$dmg"
 hdiutil verify "$dmg"
