@@ -53,6 +53,8 @@ final class VoiceStore: ObservableObject {
     var applyShortcut: ((String) -> Bool)?
     var show: (() -> Void)?
     private let engine = AVAudioEngine()
+    private var recognizer: SFSpeechRecognizer?
+    @Published var permissionHelp = false
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recorder: AVAudioRecorder?
@@ -88,18 +90,47 @@ final class VoiceStore: ObservableObject {
         generation = UUID()
         let session = generation
         busy = true
-        let microphone = await withCheckedContinuation { continuation in
-            AVCaptureDevice.requestAccess(for: .audio) { continuation.resume(returning: $0) }
+        permissionHelp = false
+        message = "Checking microphone permission…"
+        show?()
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            NSApp.activate(ignoringOtherApps: true)
+            message = "Allow Microphone access in the macOS prompt to begin."
+            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+        }
+        // Poll authorization with a bounded wait: a missing/dismissed system
+        // prompt must never leave Start disabled indefinitely.
+        for _ in 0..<150 {
+            guard generation == session else { return }
+            if AVCaptureDevice.authorizationStatus(for: .audio) != .notDetermined { break }
+            try? await Task.sleep(nanoseconds: 200_000_000)
         }
         guard generation == session else { return }
-        guard microphone else { busy = false; message = "Microphone access denied. Enable MacVoice in Microphone Settings."; show?(); return }
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+            busy = false; permissionHelp = true
+            message = "Microphone permission is required. Open Microphone Settings, enable MacVoice, then try Start again. If no prompt appeared, quit MacVoice and reopen the copy installed in Applications."
+            return
+        }
         if mode == "Local" {
-            let speech = await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+            message = "Checking Speech Recognition permission…"
+            if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
+                NSApp.activate(ignoringOtherApps: true)
+                message = "Allow Speech Recognition in the macOS prompt to begin."
+                SFSpeechRecognizer.requestAuthorization { _ in }
+            }
+            for _ in 0..<150 {
+                guard generation == session else { return }
+                if SFSpeechRecognizer.authorizationStatus() != .notDetermined { break }
+                try? await Task.sleep(nanoseconds: 200_000_000)
             }
             guard generation == session else { return }
-            guard speech == .authorized else { busy = false; message = "Speech Recognition access denied."; show?(); return }
+            guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
+                busy = false; permissionHelp = true
+                message = "Speech Recognition permission is required for Local mode. Enable MacVoice in Speech Recognition Settings, then try Start again."
+                return
+            }
         }
+        message = "Starting microphone…"
         do {
             transcript = ""; seconds = 0; finishing = false; localCompleted = false
             if mode == "Cloud" { try startCloud() } else { try startLocal() }
@@ -120,6 +151,7 @@ final class VoiceStore: ObservableObject {
               recognizer.supportsOnDeviceRecognition else {
             throw UtilityError(message: "On-device recognition is unavailable for this language/device. Choose a supported language or explicitly enable Cloud mode.")
         }
+        self.recognizer = recognizer
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
@@ -305,7 +337,7 @@ struct VoiceView: View {
             TextEditor(text: $store.transcript).font(.body).frame(minHeight: 130)
                 .disabled(store.recording || store.busy)
             HStack {
-                Button(store.recording ? "Finish" : "Start Dictation") { store.toggle() }.disabled(store.busy)
+                Button(store.recording ? "Finish" : (store.busy ? "Preparing…" : "Start Dictation")) { store.toggle() }.disabled(store.busy)
                     .buttonStyle(.borderedProminent)
                 Button("Cancel") { store.cancel() }
                 Button("Copy Text") { copyText(store.transcript) }.disabled(store.transcript.isEmpty || store.busy)
@@ -316,6 +348,12 @@ struct VoiceView: View {
             TextField("AI editing instruction", text: $store.editInstruction)
             Button("AI Edit Transcript") { store.edit() }.disabled(store.busy || store.recording || store.transcript.isEmpty)
             Text(store.message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if store.permissionHelp {
+                HStack {
+                    Button("Microphone Settings") { openPrivacy("Privacy_Microphone") }
+                    Button("Speech Recognition Settings") { openPrivacy("Privacy_SpeechRecognition") }
+                }
+            }
             Text("\(store.shortcutPreset) starts/stops · ⌃⌥E imports selected text · \(store.mode == "Cloud" ? "10min" : "55s") per session").font(.caption2)
         }.padding(20).frame(minWidth: 620, minHeight: 460)
     }

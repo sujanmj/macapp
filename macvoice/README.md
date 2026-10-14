@@ -21,3 +21,7 @@ Voicy's advertised accuracy and mixed-language performance are not reproduced or
 `bash scripts/package-utility.sh MacVoice`; requires Xcode/XcodeGen, macOS 14+. Produces a universal Apple Silicon/Intel DMG plus checksum. Ad-hoc signed and unnotarized. CI publishes beta installers only after all four builds/checks pass; see [downloads](downloads/README.md).
 
 Device tests: microphone/speech/Accessibility allow and deny; selected local languages and unsupported models; local transcript finalization/timeouts; cloud consent off; offline/invalid-key failures; stop/cancel during permissions, recording and network requests; no audio files after cancel; focus/selection changes and secure fields; original clipboard preservation; selected-text import and AI review; text remains unsubmitted in messaging apps. Live API accuracy, latency and billing were not tested without a user's key.
+
+## v0.2
+
+Start now displays microphone/speech permission progress immediately, bounds each permission wait to 30 seconds, keeps Cancel available, and offers direct Settings recovery links. The speech recognizer is retained for the session. Install in Applications before granting permissions; replacing an ad-hoc signed build may require reapproval. Local recording was observed producing a transcript on the test Mac; service accuracy and every microphone/language combination remain unverified.

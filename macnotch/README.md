@@ -16,3 +16,7 @@ Settings configure optional OpenAI access, model and opt-in login. Clipboard and
 `bash scripts/package-utility.sh MacNotch`; Xcode/XcodeGen, macOS 14+. Universal Apple Silicon/Intel DMG/checksum; ad-hoc signed, unnotarized. CI publishes beta installers only after all four builds/checks pass; see [downloads](downloads/README.md).
 
 Test hover/pin/collapse, external displays/full-screen Spaces, Music/Spotify Automation allow/deny, clipboard capture off/clear/combined ordering/marked concealment, Siri enabled/disabled, file handoff, focus timer, missing/stale MacPulse snapshot, and GPT with a user-provided key. API calls require connectivity and valid billing; compilation does not verify service accuracy/availability.
+
+## v0.2
+
+Top-edge black panel with camera-safe spacing, animated expansion/collapse, hover intent, quick collapse and Reduce Motion support. Existing Music/Spotify, Clipboard, GPT, Focus and MacShelf handoff remain available. This is an original interface inspired by the requested NotchNook reference; system-wide media, mirror and calendar integration are not included.

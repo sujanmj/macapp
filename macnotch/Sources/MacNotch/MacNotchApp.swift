@@ -1,4 +1,5 @@
 import SwiftUI
+import QuartzCore
 import AppKit
 import Carbon
 import UniformTypeIdentifiers
@@ -24,6 +25,8 @@ struct ClipboardRecord: Identifiable {
 @MainActor
 final class NotchStore: ObservableObject {
     @Published var expanded = false
+    @Published var cameraInset: CGFloat = 0
+    @Published var compactWidth: CGFloat = 220
     @Published var pinned = false
     var resize: (() -> Void)?
     @Published var clips: [ClipboardRecord] = []
@@ -54,10 +57,16 @@ final class NotchStore: ObservableObject {
     func hover(_ inside: Bool) {
         hoverID = UUID()
         let token = hoverID
-        if inside { expanded = true; resize?() }
+        if inside {
+            Task {
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                guard hoverID == token else { return }
+                expanded = true; resize?()
+            }
+        }
         else {
             Task {
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                try? await Task.sleep(nanoseconds: 450_000_000)
                 if hoverID == token && !pinned && !chatBusy { expanded = false; resize?() }
             }
         }
@@ -184,18 +193,34 @@ final class NotchStore: ObservableObject {
 struct NotchView: View {
     @ObservedObject var store: NotchStore
     @State private var tab = "Music"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        Group {
-            if store.expanded { expandedContent }
-            else {
-                HStack(spacing: 10) {
-                    Image(systemName: store.playing ? "waveform" : "capsule.fill").foregroundStyle(.cyan)
-                    Text(store.focusEnd != nil ? String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60) : "MacNotch").font(.caption.bold()).lineLimit(1)
-                    if store.clipboardEnabled { Text("\(store.clips.count)").font(.caption2).foregroundStyle(.secondary) }
-                }.frame(width: 194, height: 30).background(.black, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
+        VStack(spacing: 0) {
+            if store.cameraInset > 0 { Color.clear.frame(height: store.cameraInset) }
+            ZStack(alignment: .top) {
+                if store.expanded {
+                    expandedContent
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    HStack(spacing: 10) {
+                        Image(systemName: store.playing ? "waveform" : "capsule.fill").foregroundStyle(.cyan)
+                        Text(store.focusEnd != nil ? String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60) : "MacNotch")
+                            .font(.caption.bold()).lineLimit(1)
+                        if store.clipboardEnabled { Text("\(store.clips.count)").font(.caption2) }
+                    }
+                    .frame(height: 30)
+                    .transition(.opacity)
                     .onTapGesture { store.expanded = true; store.pinned = true; store.resize?() }
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(.black)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 16,
+                                          bottomTrailingRadius: store.expanded ? 28 : 16, topTrailingRadius: 5))
+        .foregroundStyle(.white)
+        .preferredColorScheme(.dark)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.32), value: store.expanded)
         .onHover { store.hover($0) }
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
             var accepted = false
@@ -228,10 +253,14 @@ struct NotchView: View {
                 case "Focus": focus
                 default: files
                 }
-            }.frame(minHeight: 150)
+            }.padding(14).frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+                .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                .id(tab)
+                .transition(.opacity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: tab)
             if !store.message.isEmpty { Text(store.message).font(.caption).foregroundStyle(.secondary) }
-        }.padding(18).frame(width: 500, height: 360)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(white: 0.035))
     }
     private var media: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -314,7 +343,7 @@ struct NotchSettings: View {
                 APISettingsView()
                 TextField("GPT model", text: $store.model)
                 Divider(); LoginToggle()
-                Text("⌃⌥N expands/collapses the notch panel. Hover to expand; pin to keep it open. Drag the panel to reposition it. The notch position follows the main screen when displays change. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
+                Text("⌃⌥N expands/collapses the notch panel. Hover to expand; pin to keep it open. The panel unfolds from the top edge with smooth motion and respects Reduce Motion. The notch position follows the main screen when displays change. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
             }.padding(20)
         }.frame(width: 480, height: 410)
     }
@@ -333,7 +362,8 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         window?.panel.isOpaque = false
         window?.panel.backgroundColor = .clear
         window?.panel.hasShadow = true
-        window?.panel.isMovableByWindowBackground = true
+        window?.panel.isMovableByWindowBackground = false
+        window?.panel.level = .statusBar
         store.resize = { [weak self] in self?.position() }
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
         store.showShelf = { [weak self] in
@@ -346,15 +376,27 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.position() }
         }
-        position(); store.start(); window?.show()
+        position(animated: false); store.start(); window?.show(activate: false)
     }
-    func position() {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first, let panel = window?.panel else { return }
-        // visibleFrame stays clear of the camera/notch and menu bar. Also works
-        // on external monitors and Mac models without a physical notch.
-        panel.setContentSize(store.expanded ? NSSize(width: 500, height: 360) : NSSize(width: 194, height: 30))
-        panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - panel.frame.width / 2,
-                                     y: screen.visibleFrame.maxY - panel.frame.height - 4))
+    func position(animated: Bool = true) {
+        guard let screen = window?.panel.screen ?? NSScreen.main ?? NSScreen.screens.first,
+              let panel = window?.panel else { return }
+        let inset = screen.safeAreaInsets.top
+        store.cameraInset = inset
+        if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            store.compactWidth = max(220, right.minX - left.maxX + 36)
+        } else { store.compactWidth = 220 }
+        let size = NSSize(width: store.expanded ? min(600, screen.frame.width - 40) : store.compactWidth,
+                          height: (store.expanded ? 360 : 30) + inset)
+        let frame = NSRect(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - size.height,
+                           width: size.width, height: size.height)
+        if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.32
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else { panel.setFrame(frame, display: true) }
     }
     func toggle() {
         store.expanded.toggle(); store.pinned = store.expanded; position()

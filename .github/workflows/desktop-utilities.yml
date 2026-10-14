@@ -47,8 +47,8 @@ jobs:
           name: ${{ matrix.app }}-dmg
           if-no-files-found: error
           path: |
-            ${{ matrix.folder }}/${{ matrix.app }}-v0.1.dmg
-            ${{ matrix.folder }}/${{ matrix.app }}-v0.1.dmg.sha256
+            ${{ matrix.folder }}/${{ matrix.app }}-v*.dmg
+            ${{ matrix.folder }}/${{ matrix.app }}-v*.dmg.sha256
   publish:
     needs: build
     if: github.ref == 'refs/heads/main'
@@ -67,14 +67,19 @@ jobs:
         run: |
           set -euo pipefail
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$APP-dmg" --dir dist
-          (cd dist && sha256sum -c "$APP-v0.1.dmg.sha256")
+          manifest="$(find dist -maxdepth 1 -name "$APP-v*.dmg.sha256" -print -quit)"
+          test -n "$manifest"
+          name="$(basename "$manifest" .sha256)"
+          version="${name#"$APP-v"}"
+          version="${version%.dmg}"
+          (cd dist && sha256sum -c "$name.sha256")
           folder="$(echo "$APP" | tr '[:upper:]' '[:lower:]')"
-          tag="$folder-v0.1"
+          tag="$folder-v$version"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already exists; preserving published assets."
           else
             cat > notes.md <<EOF
-          Native $APP v0.1 beta for macOS 14+, universal Apple Silicon and Intel.
+          Native $APP v$version beta for macOS 14+, universal Apple Silicon and Intel.
 
           Source and setup: https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA/$folder
 
@@ -84,7 +89,7 @@ jobs:
 
           Ad-hoc signed and unnotarized. macOS may require deliberate approval in Privacy & Security. Install through the DMG by dragging the app into Applications.
           EOF
-            gh release create "$tag" "dist/$APP-v0.1.dmg" "dist/$APP-v0.1.dmg.sha256" \
+            gh release create "$tag" "dist/$name" "dist/$name.sha256" \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-              --title "$APP v0.1 — Native Mac Beta" --notes-file notes.md
+              --title "$APP v$version — Native Mac Beta" --notes-file notes.md
           fi
