@@ -11,11 +11,15 @@ bundle="$1"
 # An ad-hoc signature establishes code integrity, NOT developer identity.
 # For Gatekeeper-friendly distribution use a real Developer ID cert and notarization.
 identity="${MACAPP_SIGNING_IDENTITY:--}"
+entitlements=()
+if [[ -n "${MACAPP_ENTITLEMENTS:-}" ]]; then
+  entitlements=(--entitlements "$MACAPP_ENTITLEMENTS")
+fi
 if [[ "$identity" == "-" ]]; then
-  /usr/bin/codesign --force --sign - --timestamp=none "$bundle"
+  /usr/bin/codesign --force --sign - --timestamp=none "${entitlements[@]}" "$bundle"
   echo "AD-HOC SIGNATURE: $bundle; macOS Gatekeeper may still block downloads."
 else
-  /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" "$bundle"
+  /usr/bin/codesign --force --options runtime --timestamp --sign "$identity" "${entitlements[@]}" "$bundle"
   echo "Developer ID signature applied: $bundle"
 fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$bundle"

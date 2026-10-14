@@ -20,8 +20,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macpulse
-        MARKETING_VERSION: '1.0.0'
-        CURRENT_PROJECT_VERSION: '10'
+        MARKETING_VERSION: '1.1.0'
+        CURRENT_PROJECT_VERSION: '11'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacPulse/Info.plist
@@ -29,6 +29,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         ENABLE_APP_SANDBOX: NO
+        CODE_SIGN_ENTITLEMENTS: Sources/MacPulse/MacPulse.entitlements
   MacPulseWidget:
     type: app-extension
     subtype: widgetkit-extension
@@ -39,11 +40,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macpulse.widget
-        MARKETING_VERSION: '1.0.0'
-        CURRENT_PROJECT_VERSION: '10'
+        MARKETING_VERSION: '1.1.0'
+        CURRENT_PROJECT_VERSION: '11'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacPulseWidget/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         ENABLE_APP_SANDBOX: YES
+        CODE_SIGN_ENTITLEMENTS: Sources/MacPulseWidget/Widget.entitlements

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import WidgetKit
 import Charts
 
 enum PulsePage: String, CaseIterable, Identifiable {
@@ -67,6 +68,8 @@ final class PulseStore: ObservableObject {
     @Published var message = ""
     @Published var requestedPage: PulsePage?
     private var timer: Timer?
+    private var lastWidgetReload = Date.distantPast
+    @Published var widgetStatus = ""
 
     init() {
         pathObserver.onUpdate = { [weak self] value in
@@ -94,6 +97,18 @@ final class PulseStore: ObservableObject {
         }
         vpn = VPNControl.list()
         memoryApps = MemoryTools.runningApps()
+        do {
+            try WidgetSnapshot(schema: 1, date: metrics.sampledAt,
+                               memoryUsed: stats.usedMemory, memoryTotal: stats.totalMemory,
+                               diskFree: stats.freeDisk, cpu: metrics.cpuPercent,
+                               upload: metrics.uploadBytesPerSecond, download: metrics.downloadBytesPerSecond,
+                               topApp: memoryApps.first?.name, topBytes: memoryApps.first?.residentBytes).write()
+            widgetStatus = "Widget snapshot saved. Keep MacPulse open for updated telemetry; widget refresh timing is controlled by macOS."
+            if Date().timeIntervalSince(lastWidgetReload) >= 300 {
+                WidgetCenter.shared.reloadTimelines(ofKind: "MacPulseDesktopWidget")
+                lastWidgetReload = Date()
+            }
+        } catch { widgetStatus = "Widget snapshot could not be saved: \(error.localizedDescription)" }
         refreshInsights()
         if VPNControl.warpCLI != nil {
             Task.detached(priority: .utility) {
@@ -956,6 +971,8 @@ struct MainView: View {
 
     private var appManager: some View {
         VStack(alignment: .leading, spacing: 18) {
+            StartupAppsView()
+            Text(store.widgetStatus).font(.caption).foregroundStyle(.secondary)
             Text("Application inventory").font(.title2.bold())
             Text("Only user-installable /Applications and ~/Applications bundles are listed. System apps are excluded. MacPulse will never delete app preferences, containers or support files, and cannot guarantee complete removal.")
                 .font(.callout).foregroundStyle(.secondary)

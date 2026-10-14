@@ -1,4 +1,4 @@
-# MacPulse v1.0 — Free Mac utility, widget & local Health Assistant
+# MacPulse v1.1 — Free Mac utility, widget & local Health Assistant
 
 Independent macOS 14+ Apple Silicon utility inspired by the categories of [MacKeeper](https://mackeeper.com/), **not affiliated** and not an antivirus/VPN service.
 
@@ -29,7 +29,7 @@ cd macapp/macpulse
 bash scripts/package-dmg.sh
 ```
 
-Open `MacPulse-v1.0.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The widget refreshes around every 5 minutes, subject to macOS WidgetKit scheduling. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
+Open `MacPulse-v1.1.dmg`, drag `MacPulse.app` to Applications and launch it. To place the native widget on your desktop: right-click the macOS desktop → **Edit Widgets** → search **MacPulse** → add **MacPulse · Memory & System**. The medium widget displays a timestamped snapshot of RAM, CPU, hardware network upload/download, disk free and the top regular app by resident memory. MacPulse samples every 15 seconds while running, requests widget reload at most every 5 minutes, and WidgetKit may refresh much later. This is not real-time. Click **Clean** to open the app's memory review (graceful quitting of individually confirmed user apps), or **VPN** to open VPN controls. These are launch links, **not background actions**; they do not silently clean or establish a VPN.
 
 The widget extension is embedded inside `MacPulse.app`. If it does not appear immediately, reopen the Edit Widgets gallery after restarting the app, or log out and back in.
 
@@ -142,3 +142,13 @@ A separately signed helper embedded in MacPulse waits for it to close, validates
 ### Privacy and limits
 
 MacPulse is not affiliated with MacKeeper, Cloudflare or Apple, and it is not a replacement for antivirus or Apple protections. It does not provide a proprietary VPN server. Existing system checks and opt-in scans are all local, except DNS requests directed to your configured DNS provider and explicit GitHub update checks.
+
+## v1.1 startup controls and widget sharing
+
+App Manager → Startup & background apps reads legacy System Events login items after user-triggered Refresh. macOS may request Automation permission. Disable asks for confirmation and removes only one matching legacy name/path; duplicates or changed entries are refused. Modern login/background items use Apple's Login Items Settings. Third-party LaunchAgents/LaunchDaemons are read-only definitions, not evidence that an item is enabled. No launchctl unloading, plist deletion, private BTM database access or system process termination.
+
+The widget reads a schema-versioned atomic JSON record at `~/Library/Application Support/com.sujanmj.macpulse/telemetry.json`. This contains metrics, timestamp, top app display name and its main-process RSS only. It is restricted to the current user (directory 0700, file 0600). A sandboxed extension has a **read-only home-relative file exception scoped to this one directory**, explicitly retained in the code signature. This direct-download design does not depend on provisioned App Groups or a paid developer team. App Store distribution should migrate to provisioned App Groups; temporary exceptions require Apple review. A missing/unreadable snapshot displays a clear fallback; no CPU or network values are invented.
+
+The app must remain running to produce snapshots. The widget freezes at the last sample if the app exits; its sample time remains visible and later timeline loads mark snapshots older than two minutes. WidgetKit may leave an already rendered entry visible for longer. Network rates are interval averages across hardware `en*` interfaces (Wi-Fi and Ethernet), not Wi-Fi link speed or a speed test. Main-process RSS excludes helpers/child processes, includes shared resident pages, and differs from Activity Monitor memory/pressure. RAM use is estimated. Small/large widgets retain the previous RAM/storage layouts; primary metric/actions customization applies to those sizes, while medium is a fixed system overview.
+
+Device checks: add the medium widget from Edit Widgets after installing in Applications; confirm it reads snapshots, then quit MacPulse and verify sample time stops. Generate network traffic and compare interval averages. Test denied Automation access, Cancel, one disposable legacy login item removal, and graceful quit with unsaved work. No force-quit fallback is present. CI verifies compilation, embedded widget, signature entitlements and DMG/checksum integrity, not these interactive device behaviors.

@@ -7,6 +7,8 @@ struct RunningAppMemory: Identifiable {
     let name: String
     let bundleID: String
     let residentBytes: UInt64
+    let launchDate: Date?
+    let executableURL: URL?
     var id: pid_t { pid }
 }
 
@@ -38,11 +40,12 @@ enum MemoryTools {
             guard app.activationPolicy == .regular,
                   app.processIdentifier != getpid(),
                   let url = app.bundleURL,
-                  url.path.hasPrefix("/Applications/") || url.path.hasPrefix(userApps),
+                  url.resolvingSymlinksInPath().path.hasPrefix("/Applications/") || url.resolvingSymlinksInPath().path.hasPrefix(userApps),
                   let memory = resident[app.processIdentifier] else { return nil }
             return RunningAppMemory(pid: app.processIdentifier,
                                     name: app.localizedName ?? url.deletingPathExtension().lastPathComponent,
-                                    bundleID: app.bundleIdentifier ?? "", residentBytes: memory)
+                                    bundleID: app.bundleIdentifier ?? "", residentBytes: memory,
+                                    launchDate: app.launchDate, executableURL: app.executableURL)
         }.sorted { $0.residentBytes > $1.residentBytes }
     }
 
@@ -50,8 +53,12 @@ enum MemoryTools {
     static func requestQuit(_ item: RunningAppMemory) -> Bool {
         guard let app = NSRunningApplication(processIdentifier: item.pid),
               app.activationPolicy == .regular,
+              app.processIdentifier != getpid(),
+              !app.isTerminated,
+              app.launchDate == item.launchDate,
+              app.executableURL == item.executableURL,
               app.bundleIdentifier == item.bundleID,
-              let bundlePath = app.bundleURL?.path,
+              let bundlePath = app.bundleURL?.resolvingSymlinksInPath().path,
               bundlePath.hasPrefix("/Applications/") ||
               bundlePath.hasPrefix(FileManager.default.homeDirectoryForCurrentUser.path + "/Applications/")
         else { return false }

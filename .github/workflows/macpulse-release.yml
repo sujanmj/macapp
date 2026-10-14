@@ -11,10 +11,11 @@ permissions:
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     steps:
-      - name: Retrieve verified MacPulse v1.0 build
+      - name: Retrieve verified MacPulse v1.1 build
+        id: build
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
@@ -24,20 +25,24 @@ jobs:
           if [ -z "$RUN_ID" ]; then
             RUN_ID=$(gh run list --repo sujanmj/macapp --workflow macpulse-build.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
+          BUILD_SHA=$(gh run view "$RUN_ID" --repo sujanmj/macapp --json headSha,headBranch,conclusion --jq 'select(.headBranch == "main" and .conclusion == "success") | .headSha')
+          test -n "$BUILD_SHA"
+          echo "sha=$BUILD_SHA" >> "$GITHUB_OUTPUT"
           gh run download "$RUN_ID" --repo sujanmj/macapp --name macpulse-dmg --dir dist
-          test -s dist/MacPulse-v1.0.dmg
-          test -s dist/MacPulse-v1.0.dmg.sha256
-          (cd dist && sha256sum -c MacPulse-v1.0.dmg.sha256)
+          test -s dist/MacPulse-v1.1.dmg
+          test -s dist/MacPulse-v1.1.dmg.sha256
+          (cd dist && sha256sum -c MacPulse-v1.1.dmg.sha256)
       - name: Publish verified DMG and SHA-256
         env:
           GH_TOKEN: ${{ github.token }}
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
         run: |
           set -euo pipefail
-          if gh release view macpulse-v1.0 --repo sujanmj/macapp >/dev/null 2>&1; then
-            gh release upload macpulse-v1.0 dist/MacPulse-v1.0.dmg dist/MacPulse-v1.0.dmg.sha256 --clobber --repo sujanmj/macapp
+          if gh release view macpulse-v1.1 --repo sujanmj/macapp >/dev/null 2>&1; then
+            gh release upload macpulse-v1.1 dist/MacPulse-v1.1.dmg dist/MacPulse-v1.1.dmg.sha256 --clobber --repo sujanmj/macapp
           else
-            gh release create macpulse-v1.0 dist/MacPulse-v1.0.dmg dist/MacPulse-v1.0.dmg.sha256 \
-              --repo sujanmj/macapp --target "${GITHUB_SHA}" \
-              --title "MacPulse v1.0 — Free Mac Utility + Memory Widget" \
-              --notes "MacPulse v1.0: unified local Mac Health Assistant with rule-based advice on disk, thermal, battery, CPU, optional security checks and developer files. Adds SHA256-verified on-demand GitHub updates with installer helper and fallback. Preserves review-based cleanup, customizable desktop widget, system monitor, VPN diagnostics, app manager, developer tools. Ad-hoc signed, not notarized; Mac approval may still be required."
+            gh release create macpulse-v1.1 dist/MacPulse-v1.1.dmg dist/MacPulse-v1.1.dmg.sha256 \
+              --repo sujanmj/macapp --target "${BUILD_SHA}" \
+              --title "MacPulse v1.1 — Startup Manager & Compact System Widget" \
+              --notes "Adds confirmed removal of legacy login items, read-only third-party launch definitions and System Settings fallback for modern background items. High-RAM app quit remains confirmed and graceful. Medium widget shows timestamped RAM, CPU, hardware network rates, disk free and top regular-app RSS. Keep MacPulse running for snapshots; WidgetKit controls refresh timing. Read-only scoped file entitlement is retained during signing. Apple Silicon, macOS 14+. Ad-hoc signed, not notarized; device-level gallery and Automation checks remain necessary."
           fi

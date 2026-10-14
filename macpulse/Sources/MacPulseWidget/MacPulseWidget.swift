@@ -31,6 +31,7 @@ struct PulseEntry: TimelineEntry {
     let date: Date
     let snapshot: SystemSnapshot
     let configuration: PulseWidgetConfiguration
+    var shared: WidgetSnapshot? = nil
 }
 
 struct PulseProvider: AppIntentTimelineProvider {
@@ -39,12 +40,12 @@ struct PulseProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: PulseWidgetConfiguration, in context: Context) async -> PulseEntry {
-        PulseEntry(date: .now, snapshot: .read(), configuration: configuration)
+        PulseEntry(date: .now, snapshot: .read(), configuration: configuration, shared: WidgetSnapshot.read())
     }
 
     func timeline(for configuration: PulseWidgetConfiguration, in context: Context) async -> Timeline<PulseEntry> {
         let now = Date()
-        let entry = PulseEntry(date: now, snapshot: .read(), configuration: configuration)
+        let entry = PulseEntry(date: now, snapshot: .read(), configuration: configuration, shared: WidgetSnapshot.read())
         // Scheduling is advisory. WidgetKit decides when to refresh for battery life.
         return Timeline(entries: [entry], policy: .after(now.addingTimeInterval(300)))
     }
@@ -127,29 +128,46 @@ struct PulseWidgetView: View {
     }
 
     private var mediumWidget: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Label("MacPulse", systemImage: focused.symbol).font(.headline)
+                Label("MacPulse", systemImage: "waveform.path.ecg").font(.headline)
                 Spacer()
-                Text("\(Int(focused.ratio * 100))%")
-                    .font(.title3.bold()).monospacedDigit()
+                if let shared = entry.shared {
+                    Text(shared.date, style: .time).font(.caption2)
+                } else { Text("Open MacPulse").font(.caption2) }
             }
-            ProgressView(value: focused.ratio).tint(.cyan)
-            HStack(alignment: .firstTextBaseline) {
-                Text(focused.title).font(.caption)
-                Spacer()
-                Text("\(SystemSnapshot.bytes(focused.used)) of \(SystemSnapshot.bytes(focused.total))")
-                    .font(.caption2).monospacedDigit().lineLimit(1)
-            }
-            if entry.configuration.showActions {
-                quickActions
-            } else {
-                Text("Customize this widget with Edit Widget")
+            if let value = entry.shared {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("RAM \(SystemSnapshot.bytes(value.memoryUsed))").font(.subheadline.bold())
+                        Text("of \(SystemSnapshot.bytes(value.memoryTotal)) · estimated").font(.caption2)
+                        Text("CPU \(percent(value.cpu))").font(.subheadline.bold())
+                    }
+                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("↓ \(rate(value.download))  ↑ \(rate(value.upload))").font(.caption.monospaced())
+                        Text("Hardware network · interval average").font(.caption2)
+                        Text("Disk free \(SystemSnapshot.bytes(value.diskFree))").font(.caption)
+                    }
+                }
+                Text("Top app: \(value.topApp ?? "Unavailable")\(value.topBytes.map { " · " + SystemSnapshot.bytes($0) } ?? "")")
+                    .font(.caption).lineLimit(1)
+                Text(entry.date.timeIntervalSince(value.date) > 120 ? "Older snapshot · open MacPulse to update" : "Snapshot · macOS schedules refreshes")
                     .font(.caption2).foregroundStyle(.secondary)
+            } else {
+                Text("RAM \(SystemSnapshot.bytes(entry.snapshot.usedMemory)) · Disk free \(SystemSnapshot.bytes(entry.snapshot.freeDisk))").font(.caption)
+                Text("CPU, network and top app need a MacPulse snapshot. Open the app; if unavailable, check widget access.").font(.caption2)
             }
-            Spacer(minLength: 0)
         }
-        .padding(15)
+        .minimumScaleFactor(0.8)
+        .widgetURL(URL(string: "macpulse://clean")!)
+    }
+
+    private func percent(_ value: Double?) -> String {
+        value.map { String(format: "%.0f%%", $0) } ?? "—"
+    }
+    private func rate(_ value: Double?) -> String {
+        value.map { String(format: "%.1f MB/s", $0 / 1_000_000) } ?? "—"
     }
 
     private var largeWidget: some View {
@@ -212,7 +230,7 @@ struct MacPulseDesktopWidget: Widget {
             PulseWidgetView(entry: entry)
         }
         .configurationDisplayName("MacPulse · Memory & System")
-        .description("Choose memory or storage; open safe Clean and VPN controls.")
+        .description("Medium: RAM, CPU, hardware network, disk free and top app. Timestamped snapshots; keep MacPulse open for updates.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

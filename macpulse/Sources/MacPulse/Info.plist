@@ -9,6 +9,7 @@
 <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSAppleEventsUsageDescription</key><string>MacPulse reads and removes only selected legacy login items through System Events after your confirmation.</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>CFBundleURLTypes</key>
 <array><dict>
