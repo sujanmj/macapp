@@ -14,3 +14,6 @@ macshelf/Assets.xcassets/AppIcon.appiconset/icon-*.png
 macswitch/Assets.xcassets/AppIcon.appiconset/icon-*.png
 macnotch/Assets.xcassets/AppIcon.appiconset/icon-*.png
 macvoice/Assets.xcassets/AppIcon.appiconset/icon-*.png
+
+# Checksums ship alongside release installers, not in source trees.
+*.dmg.sha256

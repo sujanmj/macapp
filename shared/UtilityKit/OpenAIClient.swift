@@ -59,7 +59,15 @@ struct OpenAIClient {
               let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw UtilityError(message: "Invalid response data.") }
         return value
     }
+    struct TextResult {
+        let text: String
+        let inputTokens: Int?
+        let outputTokens: Int?
+    }
     static func text(input: String, instruction: String, model: String = "gpt-4.1-mini") async throws -> String {
+        try await textWithUsage(input: input, instruction: instruction, model: model).text
+    }
+    static func textWithUsage(input: String, instruction: String, model: String = "gpt-4.1-mini") async throws -> TextResult {
         guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, input.utf8.count < 100_000 else {
             throw UtilityError(message: "Enter text shorter than 100 KB.")
         }
@@ -68,7 +76,12 @@ struct OpenAIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "input": input, "instructions": instruction,
                                                                        "store": false, "max_output_tokens": 2048])
         let response = try await json(request)
-        return try responseText(response)
+        return try responseResult(response)
+    }
+    static func responseResult(_ response: [String: Any]) throws -> TextResult {
+        let usage = response["usage"] as? [String: Any]
+        return TextResult(text: try responseText(response), inputTokens: usage?["input_tokens"] as? Int,
+                          outputTokens: usage?["output_tokens"] as? Int)
     }
     static func responseText(_ response: [String: Any]) throws -> String {
         guard response["status"] as? String == "completed" else { throw UtilityError(message: "The response was incomplete. Shorten the request and try again.") }

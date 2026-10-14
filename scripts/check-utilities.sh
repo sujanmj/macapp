@@ -10,3 +10,8 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   shared/UtilityKit/*.swift "$scratch/Shelf.swift" scripts/utility-smoke-tests.swift \
   -o "$scratch/check"
 "$scratch/check"
+sed '/^@main/,$d' macvoice/Sources/MacVoice/MacVoiceApp.swift > "$scratch/Voice.swift"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  shared/UtilityKit/*.swift "$scratch/Voice.swift" macvoice/Sources/MacVoice/SystemAudioCapture.swift \
+  scripts/voice-tests.swift -o "$scratch/voice-check"
+"$scratch/voice-check"

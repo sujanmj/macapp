@@ -20,3 +20,12 @@ Test hover/pin/collapse, external displays/full-screen Spaces, Music/Spotify Aut
 ## v0.2
 
 Top-edge black panel with camera-safe spacing, animated expansion/collapse, hover intent, quick collapse and Reduce Motion support. Existing Music/Spotify, Clipboard, GPT, Focus and MacShelf handoff remain available. This is an original interface inspired by the requested NotchNook reference; system-wide media, mirror and calendar integration are not included.
+
+## v0.3
+
+Compact Home dashboard with an Ask button, developer tools, music, date/focus cards and consistent pill navigation. File Shelf was removed from MacNotch. The collapsed panel shows the active application's icon/name (including Chrome, Safari or ChatGPT), never an app-brand label. This reads the frontmost app only, not browser tabs or page content.
+
+- Ask uses your OpenAI API key. Last-request input/output tokens and session total come from API responses. ChatGPT account limits/remaining balance are unavailable; no guessed counters.
+- Developer tools: local JSON formatting, SHA-256, UUID and Unix timestamp. Quick notes save locally; Siri and Shortcuts launchers live alongside notes.
+- Volume feedback uses the output device's reported level, when available, including changes made outside hardware keys. Brightness hardware keys show up/down direction; actual brightness percentages are not exposed reliably across supported Macs. Apple’s own HUD is retained. Hardware-key detection depends on macOS/device permissions; Settings offers Input Monitoring and an off switch.
+- Hover intent, animated top-edge opening/closing, camera spacing and Reduce Motion remain. Calendar event access, camera mirror and system-wide media playback are not implemented; Music/Spotify use explicit Automation consent.

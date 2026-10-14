@@ -25,7 +25,10 @@ trap 'rm -rf "$stage"' EXIT
 ditto "$app" "$stage/$name.app"
 ln -s /Applications "$stage/Applications"
 codesign --verify --deep --strict --verbose=2 "$stage/$name.app"
-lipo "$app/Contents/MacOS/$name" -verify_arch arm64 x86_64
+architectures="$(lipo -archs "$app/Contents/MacOS/$name")"
+for required in arm64 x86_64; do
+  case " $architectures " in *" $required "*) ;; *) echo "Missing architecture: $required" >&2; exit 1 ;; esac
+done
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")"
 version="${version%.0}"
 dmg="$PWD/$name-v$version.dmg"

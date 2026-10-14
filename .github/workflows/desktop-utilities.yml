@@ -12,6 +12,7 @@ on:
       - 'scripts/generate-utility-icons.swift'
       - 'scripts/check-utilities.sh'
       - 'scripts/utility-smoke-tests.swift'
+      - 'scripts/voice-tests.swift'
       - '.github/workflows/desktop-utilities.yml'
   workflow_dispatch:
 

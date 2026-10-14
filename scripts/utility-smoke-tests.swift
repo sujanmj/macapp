@@ -32,6 +32,11 @@ struct UtilitySmokeTests {
             ["type": "message", "content": [["type": "output_text", "text": "One"], ["type": "output_text", "text": "Two"]]]
         ]])
         precondition(text == "One\nTwo", "Responses can contain non-message items before text.")
+        let usage = try OpenAIClient.responseResult(["status": "completed", "output": [["content": [["type": "output_text", "text": "OK"]]]],
+            "usage": ["input_tokens": 12, "output_tokens": 7]])
+        precondition(usage.inputTokens == 12 && usage.outputTokens == 7)
+        let noUsage = try OpenAIClient.responseResult(["status": "completed", "output": [["content": [["type": "output_text", "text": "OK"]]]]])
+        precondition(noUsage.inputTokens == nil && noUsage.outputTokens == nil, "Missing usage must stay unknown, not fabricated zero.")
         do { _ = try OpenAIClient.responseText(["status": "incomplete", "output": []]); fatalError("Incomplete output must be rejected.") }
         catch is UtilityError { }
         do { _ = try OpenAIClient.responseText(["status": "completed", "output": []]); fatalError("Empty output must be rejected.") }
