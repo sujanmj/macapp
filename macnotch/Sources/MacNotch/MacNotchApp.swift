@@ -27,14 +27,20 @@ final class NotchStore: ObservableObject {
     @Published var expanded = false
     @Published var cameraInset: CGFloat = 0
     @Published var compactWidth: CGFloat = 220
-    @Published var expandedHeight: CGFloat = 228
+    @Published var expandedHeight: CGFloat = 248
     @Published var pinned = false
+    @Published var hideInFullScreen = UserDefaults.standard.object(forKey: "hideMacNotchInFullScreen") as? Bool ?? true
     var resize: (() -> Void)?
+    var applyFullScreenVisibility: ((Bool) -> Void)?
     @Published var clips: [ClipboardRecord] = []
     @Published var selected = Set<UUID>()
     @Published var clipboardEnabled = false
-    @Published var musicEnabled = false
-    @Published var player = "Music"
+    @Published var musicEnabled = UserDefaults.standard.bool(forKey: "mediaConnected")
+    @Published var player = UserDefaults.standard.string(forKey: "mediaPlayer") ?? "Spotify"
+    @Published var position: Double = 0
+    @Published var duration: Double = 0
+    private var mediaBusy = false
+    private let mediaQueue = DispatchQueue(label: "MacNotch.media", qos: .userInitiated)
     @Published var track = "Connect Music or Spotify"
     @Published var artist = ""
     @Published var playing = false
@@ -43,7 +49,7 @@ final class NotchStore: ObservableObject {
     @Published var chat = ""
     @Published var answer = ""
     @Published var chatBusy = false
-    @Published var model = "gpt-4.1-mini"
+    @Published var model = "gemini-flash-latest"
     @Published var focusEnd: Date?
     @Published var remaining = 0
     @Published var pulse: PulseGlance?
@@ -62,6 +68,11 @@ final class NotchStore: ObservableObject {
         hardwareEnabled = enabled
         if enabled { hardware.start() } else { hardware.stop(); hardwareHUD = nil; resize?() }
     }
+    func setHideInFullScreen(_ hidden: Bool) {
+        hideInFullScreen = hidden
+        UserDefaults.standard.set(hidden, forKey: "hideMacNotchInFullScreen")
+        applyFullScreenVisibility?(hidden)
+    }
     func showHardware(_ change: HardwareChange) {
         guard hardwareEnabled else { return }
         hardwareHUD = change; hudID = UUID()
@@ -76,6 +87,8 @@ final class NotchStore: ObservableObject {
     func updateActiveApp() {
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else { return }
         activeApp = app.localizedName ?? ""; activeIcon = app.icon
+        if !musicEnabled, ["Spotify", "Music"].contains(activeApp) { player = activeApp }
+        resize?()
     }
     private var lastChange = NSPasteboard.general.changeCount
     private var ticks = 0
@@ -115,7 +128,7 @@ final class NotchStore: ObservableObject {
     func tick() {
         ticks += 1
         if clipboardEnabled { sampleClipboard() }
-        if musicEnabled && ticks % 5 == 0 { refreshMusic() }
+        if musicEnabled { refreshMusic() }
         if let focusEnd {
             remaining = max(0, Int(ceil(focusEnd.timeIntervalSinceNow)))
             if remaining == 0 { self.focusEnd = nil; NSSound.beep(); message = "Focus session complete." }
@@ -167,24 +180,65 @@ final class NotchStore: ObservableObject {
         copyText(texts.joined(separator: "\n")); lastChange = NSPasteboard.general.changeCount
         message = "Combined \(texts.count) text clips in collection order."
     }
+    var compactMedia: Bool { ["Spotify", "Music"].contains(activeApp) || (musicEnabled && playing && !compactAI) }
+    var compactAI: Bool { activeApp == "ChatGPT" || activeApp == "Gemini" }
+    func connectMusic() {
+        musicEnabled = true
+        UserDefaults.standard.set(true, forKey: "mediaConnected")
+        UserDefaults.standard.set(player, forKey: "mediaPlayer")
+        refreshMusic(); resize?()
+    }
     func refreshMusic() {
-        guard ["Music", "Spotify"].contains(player) else { return }
-        let source = "if application \"\(player)\" is running then\n tell application \"\(player)\"\n if player state is stopped then return {\"Nothing playing\", \"\", \"stopped\"}\n return {name of current track, artist of current track, player state as string}\n end tell\nelse\n return {\"Open \(player) to connect\", \"\", \"stopped\"}\nend if"
-        var error: NSDictionary?
-        guard let result = NSAppleScript(source: "with timeout of 2 seconds\n" + source + "\nend timeout")?.executeAndReturnError(&error), error == nil else {
-            musicMessage = "Automation access unavailable. Allow \(player) access in Privacy & Security → Automation."; return
+        guard musicEnabled, !mediaBusy, ["Music", "Spotify"].contains(player) else { return }
+        mediaBusy = true
+        let chosen = player
+        let durationExpression = chosen == "Spotify" ? "(duration of current track) / 1000" : "duration of current track"
+        let source = "with timeout of 2 seconds\nif application \"\(chosen)\" is running then\n tell application \"\(chosen)\"\n if player state is stopped then return {\"Nothing playing\", \"\", \"stopped\", 0, 0}\n return {name of current track, artist of current track, player state as string, player position, \(durationExpression)}\n end tell\nelse\n return {\"Open \(chosen) to connect\", \"\", \"stopped\", 0, 0}\nend if\nend timeout"
+        mediaQueue.async { [weak self] in
+            var error: NSDictionary?
+            let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
+            let failed = error != nil || result == nil
+            let title = result?.atIndex(1)?.stringValue ?? "Nothing playing"
+            let artist = result?.atIndex(2)?.stringValue ?? ""
+            let playing = result?.atIndex(3)?.stringValue == "playing"
+            let position = result?.atIndex(4)?.doubleValue ?? 0
+            let duration = result?.atIndex(5)?.doubleValue ?? 0
+            Task { @MainActor in
+                guard let self else { return }
+                self.mediaBusy = false
+                guard self.player == chosen else { return }
+                if failed { self.musicMessage = "Allow \(chosen) in Privacy & Security → Automation, then Connect again."; return }
+                self.track = title; self.artist = artist; self.playing = playing
+                self.duration = duration.isFinite ? max(0, duration) : 0
+                self.position = position.isFinite ? min(self.duration, max(0, position)) : 0
+                self.musicMessage = ""; self.resize?()
+            }
         }
-        track = result.atIndex(1)?.stringValue ?? "Nothing playing"
-        artist = result.atIndex(2)?.stringValue ?? ""
-        playing = result.atIndex(3)?.stringValue == "playing"
-        musicMessage = ""
+    }
+    func seek(_ value: Double) {
+        guard value.isFinite, duration > 0 else { return }
+        let target = min(duration, max(0, value))
+        let number = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), target)
+        runMediaCommand("set player position to " + number)
     }
     func media(_ command: String) {
-        guard musicEnabled, ["Music", "Spotify"].contains(player), ["playpause", "next track", "previous track"].contains(command) else { return }
-        var error: NSDictionary?
-        NSAppleScript(source: "with timeout of 2 seconds\nif application \"\(player)\" is running then tell application \"\(player)\" to \(command)\nend timeout")?.executeAndReturnError(&error)
-        if error != nil { musicMessage = "Media command failed. Check Automation permission." }
-        else { refreshMusic() }
+        guard ["playpause", "next track", "previous track"].contains(command) else { return }
+        runMediaCommand(command)
+    }
+    private func runMediaCommand(_ command: String) {
+        guard musicEnabled, ["Music", "Spotify"].contains(player) else { return }
+        let chosen = player
+        let source = "with timeout of 2 seconds\nif application \"\(chosen)\" is running then tell application \"\(chosen)\" to \(command)\nend timeout"
+        mediaQueue.async { [weak self] in
+            var error: NSDictionary?
+            NSAppleScript(source: source)?.executeAndReturnError(&error)
+            let failed = error != nil
+            Task { @MainActor in
+                guard let self, self.player == chosen else { return }
+                if failed { self.musicMessage = "Media command failed. Check Automation permission." }
+                else { self.refreshMusic() }
+            }
+        }
     }
     func ask() {
         guard !chatBusy, !chat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -194,10 +248,10 @@ final class NotchStore: ObservableObject {
         let id = chatID
         chatTask = Task {
             defer { if chatID == id { chatBusy = false } }
-            do { let response = try await OpenAIClient.textWithUsage(input: input, instruction: "You are a concise, helpful Mac assistant. Answer only the user's message; do not claim to access their computer.", model: selectedModel)
+            do { let response = try await GeminiClient.ask(input, model: selectedModel)
                 if chatID == id {
                     answer = response.text; inputTokens = response.inputTokens; outputTokens = response.outputTokens
-                    if let i = inputTokens, let o = outputTokens { sessionTokens += i + o }
+                    if let total = response.totalTokens { sessionTokens += total }
                 }
             }
             catch { if chatID == id { answer = error is CancellationError ? "Cancelled." : error.localizedDescription } }
@@ -224,43 +278,59 @@ final class NotchStore: ObservableObject {
 struct NotchView: View {
     @ObservedObject var store: NotchStore
     @State private var tab = "Home"
+    @State private var scrubbing: Double?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(spacing: 0) {
             if store.cameraInset > 0 { Color.clear.frame(height: store.cameraInset) }
             ZStack(alignment: .top) {
                 if let hud = store.hardwareHUD, !store.expanded {
-                    HStack(spacing: 12) {
-                        Image(systemName: hud.symbol).foregroundStyle(.white)
-                        Text(hud.label).font(.system(size: 11, weight: .medium))
+                    HStack(spacing: 7) {
+                        Image(systemName: hud.symbol).foregroundStyle(.white).font(.system(size: 10))
+                        Text(hud.label).font(.system(size: 10, weight: .medium)).lineLimit(1)
                         if let level = hud.level {
-                            ProgressView(value: level).tint(.white).frame(width: 70)
-                            Text("\(Int(level * 100))%").font(.system(size: 10, design: .monospaced))
+                            ProgressView(value: level).tint(.white).frame(width: 30)
+                            Text("\(Int(level * 100))%").font(.system(size: 9, design: .monospaced))
                         }
-                    }.frame(height: 42).transition(.opacity)
+                    }.frame(height: 30).transition(.opacity)
                 } else if store.expanded {
                     expandedContent
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                } else if store.compactMedia {
+                    compactPlayer
+                } else if store.compactAI {
+                    HStack(spacing: 7) {
+                        if let icon = store.activeIcon { Image(nsImage: icon).resizable().frame(width: 13, height: 13) }
+                        Image(systemName: "sparkles").font(.system(size: 9)).foregroundStyle(.cyan)
+                        Text("MacNotch").font(.system(size: 10, weight: .semibold))
+                        expandButton
+                    }.frame(height: 30).help("Open MacNotch for Gemini API usage. ChatGPT account allowance is not exposed by its desktop app.")
                 } else {
                     HStack(spacing: 10) {
-                        if let icon = store.activeIcon { Image(nsImage: icon).resizable().frame(width: 15, height: 15) }
-                        else { Image(systemName: "sparkles").foregroundStyle(.cyan) }
-                        Text(store.focusEnd != nil ? String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60) : store.activeApp)
-                            .font(.caption.bold()).lineLimit(1)
-                        if store.clipboardEnabled { Text("\(store.clips.count)").font(.caption2) }
+                        Image(systemName: store.compactMedia ? "music.note" : "sparkle").font(.system(size: 10, weight: .semibold)).foregroundStyle(store.compactMedia ? .green : .cyan)
+                        Text("MacNotch").font(.system(size: 10, weight: .semibold))
+                        if store.focusEnd != nil { Text(String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60)).font(.system(size: 9, design: .monospaced)) }
+                        expandButton
                     }
                     .frame(height: 30)
                     .transition(.opacity)
-                    .onTapGesture { store.expanded = true; store.pinned = true; store.resize?() }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(.black)
+        .background {
+            if store.expanded {
+                NotchGlass()
+                    .overlay(LinearGradient(colors: [.cyan.opacity(0.16), .purple.opacity(0.13), .pink.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            } else {
+                Color.black
+            }
+        }
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 16,
                                           bottomTrailingRadius: store.expanded ? 28 : 16, topTrailingRadius: 5))
-        .foregroundStyle(.white)
-        .preferredColorScheme(.dark)
+        .overlay(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 14, bottomTrailingRadius: store.expanded ? 28 : 14, topTrailingRadius: 5).strokeBorder(.white.opacity(store.expanded ? 0.3 : 0.12), lineWidth: 0.7))
+        .foregroundStyle(.primary)
+        .preferredColorScheme(.light)
         .animation(reduceMotion ? nil : .smooth(duration: 0.32), value: store.expanded)
         .onHover { store.hover($0) }
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.hardwareHUD != nil)
@@ -269,18 +339,18 @@ struct NotchView: View {
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 5) {
-                ForEach(["Home", "Music", "Clipboard", "GPT", "Focus", "Developer", "Notes"], id: \.self) { item in
+                ForEach(["Home", "Music", "Clipboard", "Gemini", "Focus", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 228 : 340
+                        store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: icon(item))
-                            Text(item == "Developer" ? "Dev" : item == "Clipboard" ? "Clips" : item).fontWeight(.medium)
+                            Image(systemName: icon(item)).foregroundStyle(accent(item))
+                            Text(item == "Clipboard" ? "Clips" : item).fontWeight(.medium)
                         }.font(.system(size: 10)).padding(.horizontal, 8).padding(.vertical, 7)
-                            .background(tab == item ? Color.white.opacity(0.15) : Color.white.opacity(0.045), in: Capsule())
-                    }.buttonStyle(.plain).foregroundStyle(tab == item ? .white : .gray).help(item)
+                            .background(tab == item ? accent(item).opacity(0.26) : accent(item).opacity(0.09), in: Capsule())
+                    }.buttonStyle(.plain).foregroundStyle(.primary).help(item)
                 }
                 Spacer(minLength: 4)
                 Button { store.pinned.toggle() } label: { Image(systemName: store.pinned ? "pin.fill" : "pin") }
@@ -293,9 +363,8 @@ struct NotchView: View {
                 case "Home": dashboard
                 case "Music": media
                 case "Clipboard": clipboard
-                case "GPT": gpt
+                case "Gemini": gemini
                 case "Focus": focus
-                case "Developer": DeveloperTools()
                 default: notes
                 }
             }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -304,16 +373,15 @@ struct NotchView: View {
             if !store.message.isEmpty { Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2) }
         }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(.black)
+
     }
     private func icon(_ name: String) -> String {
         switch name {
         case "Home": return "square.grid.2x2.fill"
         case "Music": return "music.note"
         case "Clipboard": return "doc.on.clipboard"
-        case "GPT": return "sparkles"
+        case "Gemini": return "sparkles"
         case "Focus": return "timer"
-        case "Developer": return "curlybraces"
         default: return "note.text"
         }
     }
@@ -336,15 +404,15 @@ struct NotchView: View {
                         Button { store.media("playpause") } label: { Image(systemName: store.playing ? "pause.fill" : "play.fill") }
                         Button { store.media("next track") } label: { Image(systemName: "forward.end.fill") }
                     } else {
-                        Button("Connect player") { tab = "Music"; store.expandedHeight = 340; store.resize?() }
+                        Button("Connect player") { tab = "Music"; store.expandedHeight = 260; store.resize?() }
                             .font(.system(size: 11, weight: .medium)).foregroundStyle(.cyan)
                     }
                 }.buttonStyle(.plain).frame(maxWidth: .infinity)
             }.padding(14).frame(width: 250, height: 148, alignment: .topLeading)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 20))
+                .modifier(GlassCard(tint: .cyan))
             VStack(spacing: 8) {
-                dashboardAction("Ask", detail: "GPT assistant", symbol: "sparkles", color: .cyan) { tab = "GPT"; store.expandedHeight = 340; store.resize?() }
-                dashboardAction("Developer", detail: "JSON · UUID · SHA", symbol: "curlybraces", color: .purple) { tab = "Developer"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Ask", detail: "Gemini", symbol: "sparkles", color: .cyan) { tab = "Gemini"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Notes", detail: "Catch a thought", symbol: "note.text", color: .orange) { tab = "Notes"; store.expandedHeight = 340; store.resize?() }
             }.frame(width: 130)
             VStack(alignment: .leading, spacing: 12) {
                 Text(Date(), format: .dateTime.weekday(.wide)).font(.system(size: 10)).foregroundStyle(.gray)
@@ -357,7 +425,7 @@ struct NotchView: View {
                         .font(.system(size: 11)).foregroundStyle(.mint)
                 }.buttonStyle(.plain)
             }.padding(14).frame(maxWidth: .infinity, minHeight: 148, alignment: .topLeading)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 20))
+                .modifier(GlassCard(tint: .orange))
         }
     }
     private func dashboardAction(_ title: String, detail: String, symbol: String, color: Color, action: @escaping () -> Void) -> some View {
@@ -370,24 +438,69 @@ struct NotchView: View {
                 }
                 Spacer(minLength: 0)
             }.padding(12).frame(height: 70)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+                .modifier(GlassCard(tint: color))
         }.buttonStyle(.plain)
     }
-    private var media: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Picker("Player", selection: $store.player) { Text("Music").tag("Music"); Text("Spotify").tag("Spotify") }
-                Button(store.musicEnabled ? "Refresh" : "Connect") { store.musicEnabled = true; store.refreshMusic() }
-            }
-            Text(store.track).font(.title3.bold()).lineLimit(2)
-            Text(store.artist).font(.caption).foregroundStyle(.secondary)
-            HStack {
-                Button { store.media("previous track") } label: { Image(systemName: "backward.end.fill") }
-                Button { store.media("playpause") } label: { Image(systemName: store.playing ? "pause.fill" : "play.fill") }
-                Button { store.media("next track") } label: { Image(systemName: "forward.end.fill") }
-            }.disabled(!store.musicEnabled)
-            Text(store.musicMessage.isEmpty ? "Music and Spotify via macOS Automation permission." : store.musicMessage).font(.caption2)
+    private func accent(_ section: String) -> Color {
+        switch section { case "Home": return .blue; case "Music": return .green; case "Clipboard": return .purple; case "Gemini": return .cyan; case "Focus": return .orange; default: return .pink }
+    }
+    private var expandButton: some View {
+        Button { store.expanded = true; store.pinned = true; store.resize?() } label: {
+            Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
+        }.buttonStyle(.plain).help("Expand notch").accessibilityLabel("Expand notch")
+    }
+    private var playbackButtons: some View {
+        HStack(spacing: 16) {
+            Button { store.media("previous track") } label: { Image(systemName: "backward.end.fill") }.help("Previous track")
+            Button { store.media("playpause") } label: { Image(systemName: store.playing ? "pause.fill" : "play.fill") }.help("Play / Pause")
+            Button { store.media("next track") } label: { Image(systemName: "forward.end.fill") }.help("Next track")
+        }.buttonStyle(.plain).foregroundStyle(.green).disabled(!store.musicEnabled)
+    }
+    private var progressBar: some View {
+        HStack(spacing: 8) {
+            Text(clock(store.position)).font(.system(size: 9, design: .monospaced))
+            Slider(value: Binding(get: { scrubbing ?? store.position }, set: { scrubbing = $0 }), in: 0...max(1, store.duration), onEditingChanged: { editing in
+                if !editing, let target = scrubbing { store.seek(target); scrubbing = nil }
+            }).tint(.green).disabled(!store.musicEnabled || store.duration <= 0)
+                .accessibilityLabel("Playback position")
+            Text(clock(store.duration)).font(.system(size: 9, design: .monospaced))
         }
+    }
+    private func clock(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "—" }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+    private var compactPlayer: some View {
+        HStack(spacing: 7) {
+            Image(systemName: store.playing ? "waveform" : "music.note").font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
+            Text("MacNotch").font(.system(size: 10, weight: .semibold))
+            if store.musicEnabled { Image(systemName: store.playing ? "play.fill" : "pause.fill").font(.system(size: 8)).foregroundStyle(.green) }
+            expandButton
+        }.frame(height: 30).help(store.track)
+    }
+    private var media: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Picker("Player", selection: $store.player) { Text("Spotify").tag("Spotify"); Text("Music").tag("Music") }.frame(width: 220)
+                    .onChange(of: store.player) { _, value in
+                        UserDefaults.standard.set(value, forKey: "mediaPlayer")
+                        store.position = 0; store.duration = 0; store.refreshMusic()
+                    }
+                Spacer()
+                Button(store.musicEnabled ? "Refresh" : "Connect") { store.connectMusic() }
+            }
+            HStack(spacing: 16) {
+                Image(systemName: "music.note").font(.system(size: 30)).foregroundStyle(.green)
+                    .frame(width: 64, height: 64).modifier(GlassCard(tint: .green))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(store.track).font(.title3.bold()).lineLimit(2)
+                    Text(store.artist).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(); playbackButtons
+            }
+            progressBar
+            if !store.musicMessage.isEmpty { Text(store.musicMessage).font(.caption2).foregroundStyle(.orange) }
+        }.padding(16).modifier(GlassCard(tint: .green))
     }
     private var clipboard: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -404,14 +517,14 @@ struct NotchView: View {
             Text("20 clips · memory only · up to 2 MB each · marked concealed content excluded. Turn off to erase history.").font(.caption2).foregroundStyle(.secondary)
         }
     }
-    private var gpt: some View {
+    private var gemini: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Ask GPT…", text: $store.chat, axis: .vertical).lineLimit(2...4)
+            TextField("Ask Gemini…", text: $store.chat, axis: .vertical).lineLimit(2...4)
             HStack {
                 Button("Send") { store.ask() }.disabled(store.chatBusy || store.chat.isEmpty)
                 if store.chatBusy { ProgressView().controlSize(.small); Button("Cancel") { store.cancelChat() } }
                 Button("Clear") { store.clearChat() }
-                Spacer(); Button("Open ChatGPT") { NSWorkspace.shared.open(URL(string: "https://chatgpt.com")!) }
+                Spacer(); Button("Open Gemini") { NSWorkspace.shared.open(URL(string: "https://gemini.google.com")!) }
             }
             ScrollView { Text(store.answer).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 100)
             HStack {
@@ -421,8 +534,8 @@ struct NotchView: View {
                     Text("Last: \(i) in · \(o) out | Session: \(store.sessionTokens)").font(.system(size: 10, design: .monospaced)).foregroundStyle(.cyan)
                 }
             }
-            Text("Usage is for this app’s API requests. ChatGPT plan balance: unavailable.").font(.caption2).foregroundStyle(.secondary)
-            Text("Send uses your OpenAI API key. Configure it in Settings. Single-message chat; nothing is sent automatically.").font(.caption2)
+            Text("Usage is for Gemini API requests in this app. Account remaining: unavailable.").font(.caption2).foregroundStyle(.secondary)
+            Text("Send shares your typed question with Google using your Gemini API key. Configure it in Settings.").font(.caption2)
         }
     }
     private var focus: some View {
@@ -465,15 +578,17 @@ struct NotchSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("MacNotch Settings").font(.title2.bold())
-                APISettingsView()
-                TextField("GPT model", text: $store.model)
+                GeminiSettings()
+                TextField("Gemini model", text: $store.model)
                 Toggle("Volume and brightness feedback", isOn: Binding(get: { store.hardwareEnabled }, set: { store.setHardware($0) }))
+                Toggle("Hide MacNotch in full-screen apps", isOn: Binding(get: { store.hideInFullScreen }, set: { store.setHideInFullScreen($0) }))
+                Text("When enabled, the notch panel stays out of macOS full-screen spaces. The compact black pill remains close to the built-in camera notch size.").font(.caption)
                 Text("Volume changes show the reported level when available. Brightness keys show direction only. Hardware-key visibility depends on macOS permissions/device; Apple’s own HUD remains enabled.").font(.caption)
                 Button("Input Monitoring Settings") { openPrivacy("Privacy_ListenEvent") }
                 Divider(); LoginToggle()
                 Text("⌃⌥N expands/collapses the notch panel. Hover to expand; pin to keep it open. The panel unfolds from the top edge with smooth motion and respects Reduce Motion. The notch position follows the main screen when displays change. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
             }.padding(20)
-        }.frame(width: 480, height: 410)
+        }.frame(width: 480, height: 450)
     }
 }
 
@@ -492,6 +607,10 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         window?.panel.hasShadow = true
         window?.panel.isMovableByWindowBackground = false
         window?.panel.level = .statusBar
+        store.applyFullScreenVisibility = { [weak self] hide in
+            self?.window?.panel.collectionBehavior = hide ? [.canJoinAllSpaces] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+        }
+        store.applyFullScreenVisibility?(store.hideInFullScreen)
         store.resize = { [weak self] in self?.position() }
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
         shortcut.action = { [weak self] in self?.toggle() }
@@ -507,12 +626,14 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         let inset = screen.safeAreaInsets.top
         store.cameraInset = inset
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-            store.compactWidth = max(220, right.minX - left.maxX + 36)
-        } else { store.compactWidth = 220 }
-        let size = NSSize(width: store.expanded ? min(700, screen.frame.width - 40) : (store.hardwareHUD == nil ? store.compactWidth : max(340, store.compactWidth)),
-                          height: (store.expanded ? store.expandedHeight : (store.hardwareHUD == nil ? 30 : 42)) + inset)
+            let cameraNotchWidth = max(0, right.minX - left.maxX)
+            store.compactWidth = min(250, max(176, cameraNotchWidth + 24))
+        } else { store.compactWidth = 184 }
+        let size = NSSize(width: store.expanded ? min(700, screen.frame.width - 40) : store.compactWidth,
+                          height: (store.expanded ? store.expandedHeight : 30) + inset)
         let frame = NSRect(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - size.height,
                            width: size.width, height: size.height)
+        guard panel.frame != frame else { return }
         if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.32

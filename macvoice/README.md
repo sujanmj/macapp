@@ -31,3 +31,7 @@ Start now displays microphone/speech permission progress immediately, bounds eac
 Choose **Microphone** for nearby voices/external TV, or **Mac audio** for meeting participants/videos playing through this Mac. Mac audio uses ScreenCaptureKit and requires macOS Screen & System Audio Recording permission; only audio output is consumed. Local and Cloud transcription both support it. No automatic paste for Mac audio. Respect meeting participants’ recording expectations; recording is always explicitly started/stopped.
 
 **Get Answer** sends a snapshot of the transcript to OpenAI and displays a separate answer below it without rewriting the transcript. Choose Answer question, Draft my reply, or Summarize action items. Your API key and cloud consent are required. Answers are suggestions: no calendar events, messages or external tasks are executed. Cancellation discards late responses; an older answer is labeled when the transcript changes.
+
+## v0.4
+
+Restores the complete v0.2 MacVoice application behaviour at the user’s request: microphone dictation, permission recovery, optional cloud transcription and editing. Removes v0.3 Get Answer and Mac/system-audio capture. The version increases to 0.4 so this rollback can replace v0.3 cleanly.

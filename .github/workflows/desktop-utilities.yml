@@ -12,7 +12,7 @@ on:
       - 'scripts/generate-utility-icons.swift'
       - 'scripts/check-utilities.sh'
       - 'scripts/utility-smoke-tests.swift'
-      - 'scripts/voice-tests.swift'
+      - 'scripts/gemini-tests.swift'
       - '.github/workflows/desktop-utilities.yml'
   workflow_dispatch:
 
@@ -86,7 +86,7 @@ jobs:
 
           Built from $GITHUB_SHA. Compilation, file-reference safety tests, signature/entitlement checks, both CPU architectures, DMG integrity and SHA-256 checksum passed before publication.
 
-          Beta limitations: real macOS permission prompts, drag/drop, window focus and voice/paste interactions still need device testing. GPT/cloud dictation/editing requires a user-provided OpenAI API key and separate API billing; live service accuracy was not tested. Siri opens Apple's own interface. These apps do not claim full Dropover/AltTab/Voicy feature parity.
+          Beta limitations: real macOS permission prompts, drag/drop, window focus and voice/paste interactions still need device testing. MacNotch Gemini requires a Google Gemini API key; MacVoice cloud dictation/editing requires an OpenAI API key. Provider API billing is separate from consumer chat subscriptions; live service accuracy was not tested. Siri opens Apple's own interface. These apps do not claim full Dropover/AltTab/Voicy feature parity.
 
           Ad-hoc signed and unnotarized. macOS may require deliberate approval in Privacy & Security. Install through the DMG by dragging the app into Applications.
           EOF
