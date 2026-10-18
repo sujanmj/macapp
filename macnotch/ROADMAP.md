@@ -50,7 +50,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Capture | Element Capture | Partial — display/window screenshot, drag crop, local OCR, freehand markup; more editing tools remain |
 | Capture | Camera | Planned |
 | Capture | Text Capture / OCR | Planned |
-| Files | Finder Services | Partial — tray picker/drop exists; Finder context-menu service needed |
+| Files | Finder Services | Partial — Finder Services menu action adds selected items to tray; contextual Quick Actions and broader provider compatibility remain |
 | Files | Temporary Cloud Sharing | Planned |
 | Files | LocalSend | Planned |
 | System | Window Snap | Planned |

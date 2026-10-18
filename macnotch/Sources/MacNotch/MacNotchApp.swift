@@ -1391,7 +1391,23 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.position() }
         }
+        NSApp.servicesProvider = self
+        NSUpdateDynamicServices()
         position(animated: false); store.start(); window?.show(activate: false)
+    }
+    @objc func addFilesToTray(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        let urls = (pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) ?? [])
+            .compactMap { $0 as? URL }
+            .filter(\.isFileURL)
+        guard !urls.isEmpty else {
+            error.pointee = "No file references were provided." as NSString
+            return
+        }
+        store.addTrayURLs(urls)
+        store.expanded = true
+        store.pinned = true
+        position()
+        window?.panel.orderFrontRegardless()
     }
     func position(animated: Bool = true) {
         guard let screen = window?.panel.screen ?? NSScreen.main ?? NSScreen.screens.first,
