@@ -38,3 +38,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/TrayTransfer.swift scripts/macnotch-tray-transfer-tests.swift \
   -o "$scratch/macnotch-tray-transfer-check"
 "$scratch/macnotch-tray-transfer-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/PDFFileActions.swift scripts/macnotch-pdf-actions-tests.swift \
+  -framework AppKit -framework PDFKit -o "$scratch/macnotch-pdf-actions-check"
+"$scratch/macnotch-pdf-actions-check"

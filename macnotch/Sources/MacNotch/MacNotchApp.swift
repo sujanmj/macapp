@@ -274,6 +274,33 @@ final class NotchStore: ObservableObject {
             }
         }
     }
+    var trayPDFCount: Int {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        return entries.filter { $0.url.pathExtension.lowercased() == "pdf" && FileManager.default.fileExists(atPath: $0.path) }.count
+    }
+    func mergeTrayPDFs() {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        let sources = entries.map(\.url).filter { $0.pathExtension.lowercased() == "pdf" && FileManager.default.fileExists(atPath: $0.path) }
+        guard sources.count >= 2 else { message = "Add or select at least two existing PDFs to merge."; return }
+        let panel = NSSavePanel()
+        panel.title = "Merge Tray PDFs"
+        panel.nameFieldStringValue = "MacNotch-Merged.pdf"
+        panel.allowedContentTypes = [.pdf]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else { message = "PDF merge canceled."; return }
+        message = "Merging \(sources.count) PDFs…"
+        Task.detached(priority: .userInitiated) { [store = self] in
+            do {
+                let pages = try PDFFileActions.merge(sources, to: destination)
+                await MainActor.run {
+                    store.message = "Merged \(sources.count) PDFs (\(pages) pages) into \(destination.lastPathComponent). Originals are unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting([destination])
+                }
+            } catch {
+                await MainActor.run { store.message = error.localizedDescription }
+            }
+        }
+    }
     func zipTray() {
         let candidates = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
         let urls = candidates.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -838,6 +865,9 @@ struct NotchView: View {
                 Button { store.sendTrayFilesToFolder() } label: { Label("Send", systemImage: "folder") }
                     .help("Copy selected items, or all items, to a folder")
                     .disabled(store.trayFiles.isEmpty)
+                Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
+                    .help("Merge selected PDFs, or all tray PDFs, into a new PDF")
+                    .disabled(store.trayPDFCount < 2)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
@@ -1083,6 +1113,9 @@ private struct FloatingTrayView: View {
                 Button { store.sendTrayFilesToFolder() } label: { Label("Send", systemImage: "folder") }
                     .help("Copy selected items, or all items, to a folder")
                     .disabled(store.trayFiles.isEmpty)
+                Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
+                    .help("Merge selected PDFs, or all tray PDFs, into a new PDF")
+                    .disabled(store.trayPDFCount < 2)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)

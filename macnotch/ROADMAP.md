@@ -11,8 +11,8 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Dynamic notch and island | Partial | Compact black notch, glass panel, saved accent colors, fullscreen preference; notchless display island still needed. |
 | File tray | Partial | Persistent path list, file picker and drop, drag-out, open/reveal/remove, ZIP, collision-safe copy to a chosen folder; destination-aware transient shelf and quick actions still needed. |
 | Floating file tray | Partial | Separate shelf with drop-in, drag-out, multi-select copy, and pointer shake-to-reveal; auto-hide, multiple trays, and destination-aware quick actions remain. |
-| Quick Actions | Partial | Finder add-to-tray service, smaller JPEG copy, selected/all multi-file sharing, and safe copy-to-folder; configurable action recipes and broader file types remain. |
-| File Transform | Partial | Local ZIP creation and image downsampling to JPEG; PDF/audio/video transforms remain. |
+| Quick Actions | Partial | Finder add-to-tray service, smaller JPEG copy, selected/all multi-file sharing, safe copy-to-folder, and PDF merging; configurable action recipes and broader file types remain. |
+| File Transform | Partial | Local ZIP creation, image downsampling to JPEG, and multi-PDF merge; audio/video transforms remain. |
 | Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |
 | Live Activities | Partial | MacNotch-owned music, focus, tray, recorder, and frontmost-app statuses; system and third-party feeds still needed. |
 | Floating player | Planned | Resizable desktop/menu-bar player and queue. |
