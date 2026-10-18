@@ -94,6 +94,7 @@ final class NotchStore: ObservableObject {
     @Published var metrics = MacMetrics()
     @Published var trayDropTargeted = false
     var showFloatingTray: (() -> Void)?
+    var showFloatingPlayer: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
     @Published var capture = ElementCaptureController()
     @Published var includeSystemAudio = UserDefaults.standard.object(forKey: "macNotchRecordSystemAudio") as? Bool ?? true
@@ -769,6 +770,8 @@ struct NotchView: View {
                     }
                 Spacer()
                 Button(store.musicEnabled ? "Refresh" : "Connect") { store.connectMusic() }
+                Button { store.showFloatingPlayer?() } label: { Label("Float", systemImage: "macwindow") }
+                    .help("Open the floating music player")
             }
             HStack(spacing: 16) {
                 Image(systemName: "music.note").font(.system(size: 30)).foregroundStyle(.green)
@@ -1082,6 +1085,72 @@ struct NotchView: View {
         }
     }
 
+}
+
+private struct FloatingPlayerView: View {
+    @ObservedObject var store: NotchStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Now Playing", systemImage: "waveform").font(.headline)
+                Spacer()
+                Picker("Player", selection: $store.player) {
+                    Text("Spotify").tag("Spotify")
+                    Text("Music").tag("Music")
+                }
+                .frame(width: 150)
+                .onChange(of: store.player) { _, value in
+                    UserDefaults.standard.set(value, forKey: "mediaPlayer")
+                    store.position = 0
+                    store.duration = 0
+                    store.refreshMusic()
+                }
+            }
+            HStack(spacing: 14) {
+                Image(systemName: store.playing ? "waveform" : "music.note")
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(.green)
+                    .frame(width: 64, height: 64)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(store.track).font(.title3.bold()).lineLimit(2)
+                    Text(store.artist.isEmpty ? store.player : store.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                HStack(spacing: 18) {
+                    Button { store.media("previous track") } label: { Image(systemName: "backward.fill") }.help("Previous track")
+                    Button { store.media("playpause") } label: {
+                        Image(systemName: store.playing ? "pause.fill" : "play.fill")
+                            .font(.system(size: 17, weight: .bold))
+                            .frame(width: 44, height: 44)
+                            .background(.white.opacity(0.12), in: Circle())
+                    }.buttonStyle(.plain).help("Play or pause")
+                    Button { store.media("next track") } label: { Image(systemName: "forward.fill") }.help("Next track")
+                }
+                .buttonStyle(.plain)
+            }
+            VStack(spacing: 4) {
+                Slider(value: Binding(get: { store.position }, set: { store.seek($0) }), in: 0...max(1, store.duration))
+                    .disabled(!store.musicEnabled || store.duration <= 0)
+                HStack {
+                    Text(clock(store.position))
+                    Spacer()
+                    Text(clock(store.duration))
+                }.font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            if !store.musicMessage.isEmpty { Text(store.musicMessage).font(.caption2).foregroundStyle(.orange) }
+            if !store.musicEnabled { Button("Connect to \(store.player)") { store.connectMusic() }.buttonStyle(.borderedProminent) }
+        }
+        .padding(18)
+        .frame(minWidth: 400, minHeight: 215)
+        .background(NotchGlass())
+    }
+
+    private func clock(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "—" }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
 }
 
 private struct FloatingTrayView: View {
@@ -1624,9 +1693,11 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     let store = NotchStore()
     let shortcut = GlobalShortcut()
     let floatingTrayShortcut = GlobalShortcut()
+    let floatingPlayerShortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
+    var floatingPlayer: FloatingWindow?
     var displayObserver: NSObjectProtocol?
     var dragMonitors: [Any] = []
     var dragShakeDetector = DragShakeDetector()
@@ -1645,8 +1716,11 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.resize = { [weak self] in self?.position() }
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
         floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
+        floatingPlayer = FloatingWindow(title: "MacNotch Player", size: NSSize(width: 460, height: 260), content: FloatingPlayerView(store: store))
         _ = floatingTray?.panel.setFrameAutosaveName("MacNotchFloatingFileShelf")
+        _ = floatingPlayer?.panel.setFrameAutosaveName("MacNotchFloatingPlayer")
         store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
+        store.showFloatingPlayer = { [weak self] in self?.showFloatingPlayer() }
         if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
             let point = NSEvent.mouseLocation
             Task { @MainActor in self?.handleFileDrag(at: point) }
@@ -1661,6 +1735,10 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingTrayShortcut.action = { [weak self] in self?.showFloatingTray() }
         if !floatingTrayShortcut.register(key: UInt32(kVK_ANSI_F), modifiers: UInt32(controlKey | optionKey)) {
             store.message = "Floating shelf shortcut unavailable; use the menu bar or File Tray."
+        }
+        floatingPlayerShortcut.action = { [weak self] in self?.showFloatingPlayer() }
+        if !floatingPlayerShortcut.register(key: UInt32(kVK_ANSI_M), modifiers: UInt32(controlKey | optionKey)) {
+            store.message = "Floating player shortcut unavailable; use the Music tab."
         }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.position() }
@@ -1710,6 +1788,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         window?.panel.orderFrontRegardless()
     }
     func showFloatingTray() { floatingTray?.show() }
+    func showFloatingPlayer() { floatingPlayer?.show() }
     func handleFileDrag(at point: CGPoint) {
         guard store.shakeToRevealShelf else { dragShakeDetector.reset(); return }
         if floatingTray?.panel.frame.insetBy(dx: -18, dy: -18).contains(point) == true {
@@ -1733,6 +1812,7 @@ struct MacNotchApp: App {
         MenuBarExtra("MacNotch", systemImage: "capsule.fill") {
             Button("Show / Hide Panel") { delegate.toggle() }
             Button("Floating File Shelf   ⌃⌥F") { delegate.showFloatingTray() }
+            Button("Floating Player   ⌃⌥M") { delegate.showFloatingPlayer() }
             Button("Settings") { delegate.settings?.show() }
             Divider(); Button("Quit MacNotch") { NSApp.terminate(nil) }
         }

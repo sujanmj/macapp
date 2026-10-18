@@ -15,7 +15,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | File Transform | Partial | Local ZIP creation, image downsampling to JPEG, and multi-PDF merge; audio/video transforms remain. |
 | Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |
 | Live Activities | Partial | MacNotch-owned music, focus, tray, recorder, and frontmost-app statuses; system and third-party feeds still needed. |
-| Floating player | Planned | Resizable desktop/menu-bar player and queue. |
+| Floating player | Partial | Resizable floating Apple Music/Spotify mini-player with seeking and playback controls; queue, artwork, and lyrics remain. |
 | Lock screen | Planned | Lock-screen display surfaces and media/focus cards. |
 | Cloud sharing | Planned | Temporary file links with expiry and account/security design. |
 | iPhone sync/widgets | Planned | Pairing, encrypted sync, iOS widgets, and Live Activities. |
