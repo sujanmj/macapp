@@ -47,7 +47,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | AI | Voice Transcribe | Partial — MacVoice is separate and not integrated into MacNotch |
 | AI | Coding Agents | Planned |
 | AI | MCP tools | Planned |
-| Capture | Element Capture | Partial — full-display screenshot with local OCR; region selection/editor/annotation remain |
+| Capture | Element Capture | Partial — full-display or single-window screenshot with local OCR; region selection/editor/annotation remain |
 | Capture | Camera | Planned |
 | Capture | Text Capture / OCR | Planned |
 | Files | Finder Services | Partial — tray picker/drop exists; Finder context-menu service needed |

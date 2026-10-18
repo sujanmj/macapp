@@ -916,6 +916,16 @@ private struct ElementCaptureView: View {
                 Image(systemName: "viewfinder").font(.system(size: 21)).foregroundStyle(.cyan)
             }
             HStack(spacing: 8) {
+                Picker("Capture target", selection: $capture.target) {
+                    Text("Entire display").tag(CaptureTarget.display)
+                    ForEach(capture.windows) { window in
+                        Text("\(window.appName): \(window.title)").tag(CaptureTarget.window(window.id))
+                    }
+                }.pickerStyle(.menu).frame(maxWidth: 390, alignment: .leading)
+                Button("Refresh") { Task { await capture.refreshWindows() } }
+                    .disabled(capture.busy)
+            }.font(.system(size: 10))
+            HStack(spacing: 8) {
                 Button { Task { await capture.captureScreen() } } label: {
                     Label(capture.busy ? "Capturing…" : "Capture Screen", systemImage: "camera")
                 }.buttonStyle(.borderedProminent).tint(.cyan).disabled(capture.busy)
@@ -937,9 +947,10 @@ private struct ElementCaptureView: View {
                 }.frame(maxHeight: 92).padding(8).background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
             }
             Text(capture.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Text("Images save locally to Pictures/MacNotch Captures. Screen Recording permission is required. OCR runs locally with Apple Vision; captured text stays on this Mac unless you copy it.")
+            Text("Capture the entire display or one visible app window. Images save locally to Pictures/MacNotch Captures. Screen Recording permission is required. OCR runs locally with Apple Vision; captured text stays on this Mac unless you copy it.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(14).modifier(GlassCard(tint: .cyan))
+            .task { await capture.refreshWindows() }
     }
 }
 

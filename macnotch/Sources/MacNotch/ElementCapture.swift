@@ -1,6 +1,17 @@
 import AppKit
 import ScreenCaptureKit
 
+struct CaptureWindowOption: Identifiable, Hashable {
+    let id: CGWindowID
+    let title: String
+    let appName: String
+}
+
+enum CaptureTarget: Hashable {
+    case display
+    case window(CGWindowID)
+}
+
 @MainActor
 final class ElementCaptureController: ObservableObject {
     @Published private(set) var busy = false
@@ -8,6 +19,27 @@ final class ElementCaptureController: ObservableObject {
     @Published private(set) var image: NSImage?
     @Published private(set) var recognizedText = ""
     @Published private(set) var latestCapture: URL?
+    @Published private(set) var windows: [CaptureWindowOption] = []
+    @Published var target: CaptureTarget = .display
+
+    func refreshWindows() async {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            windows = content.windows.compactMap { window in
+                guard window.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier,
+                      let title = window.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+                      window.frame.width >= 200, window.frame.height >= 120 else { return nil }
+                return CaptureWindowOption(id: window.windowID, title: title,
+                                           appName: window.owningApplication?.applicationName ?? "App")
+            }.sorted { lhs, rhs in
+                lhs.appName == rhs.appName ? lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                                           : lhs.appName.localizedCaseInsensitiveCompare(rhs.appName) == .orderedAscending
+            }
+            if case .window(let id) = target, !windows.contains(where: { $0.id == id }) { target = .display }
+        } catch {
+            windows = []
+        }
+    }
 
     func captureScreen() async {
         guard !busy else { return }
@@ -18,15 +50,27 @@ final class ElementCaptureController: ObservableObject {
 
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            let mainDisplayID = (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
-            guard let display = content.displays.first(where: { $0.displayID == mainDisplayID }) ?? content.displays.first else {
-                throw CaptureError.noDisplay
+            let filter: SCContentFilter
+            switch target {
+            case .display:
+                let mainDisplayID = (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+                guard let display = content.displays.first(where: { $0.displayID == mainDisplayID }) ?? content.displays.first else {
+                    throw CaptureError.noDisplay
+                }
+                let excludedApps = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+                filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
+            case .window(let windowID):
+                guard let window = content.windows.first(where: { $0.windowID == windowID }),
+                      window.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else {
+                    await refreshWindows()
+                    throw CaptureError.windowUnavailable
+                }
+                filter = SCContentFilter(desktopIndependentWindow: window)
             }
-            let excludedApps = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
-            let filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
             let configuration = SCStreamConfiguration()
-            configuration.width = display.width
-            configuration.height = display.height
+            let scale = CGFloat(filter.pointPixelScale)
+            configuration.width = max(1, Int(filter.contentRect.width * scale))
+            configuration.height = max(1, Int(filter.contentRect.height * scale))
             configuration.showsCursor = true
 
             let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
@@ -72,11 +116,13 @@ final class ElementCaptureController: ObservableObject {
 
 private enum CaptureError: LocalizedError {
     case noDisplay
+    case windowUnavailable
     case pngEncoding
 
     var errorDescription: String? {
         switch self {
         case .noDisplay: "No display is available to capture."
+        case .windowUnavailable: "That window is no longer available. Refresh the list and try again."
         case .pngEncoding: "The screenshot could not be encoded as a PNG."
         }
     }
