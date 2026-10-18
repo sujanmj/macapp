@@ -9,7 +9,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Surface | Status | Notes |
 | --- | --- | --- |
 | Dynamic notch and island | Partial | Compact black notch, glass panel, saved accent colors, fullscreen preference; notchless display island still needed. |
-| File tray | Partial | Persistent path list, file picker and drop, drag-out, open/reveal/remove, ZIP, collision-safe copy to a chosen or recent folder; destination-aware transient shelf and quick actions still needed. |
+| File tray | Partial | Persistent path list, file picker and drop, Quick Look thumbnails, drag-out, open/reveal/remove, ZIP, collision-safe copy to a chosen or recent folder; destination-aware transient shelf and quick actions still needed. |
 | Floating file tray | Partial | Separate shelf with drop-in, drag-out, multi-select copy, and pointer shake-to-reveal; auto-hide, multiple trays, and destination-aware quick actions remain. |
 | Quick Actions | Partial | Finder add-to-tray service, smaller JPEG copy, selected/all multi-file sharing, recent copy destinations, and PDF merging; configurable action recipes and broader file types remain. |
 | File Transform | Partial | Local ZIP creation, image downsampling to JPEG, and multi-PDF merge; audio/video transforms remain. |

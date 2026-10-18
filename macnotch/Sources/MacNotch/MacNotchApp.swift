@@ -3,6 +3,7 @@ import QuartzCore
 import AppKit
 import Carbon
 import UniformTypeIdentifiers
+import QuickLookThumbnailing
 
 struct PulseGlance: Decodable {
     let schema: Int
@@ -32,6 +33,54 @@ struct TrayEntry: Codable, Identifiable, Hashable {
         self.id = UUID()
         self.path = url.standardizedFileURL.path
         self.addedAt = Date()
+    }
+}
+
+private struct TrayThumbnail: View {
+    let url: URL
+    let accent: Color
+    @State private var preview: NSImage?
+
+    private var fallbackSymbol: String {
+        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true { return "folder.fill" }
+        if let type = UTType(filenameExtension: url.pathExtension) {
+            if type.conforms(to: .image) { return "photo" }
+            if type.conforms(to: .movie) { return "film" }
+            if type.conforms(to: .audio) { return "waveform" }
+            if type.conforms(to: .pdf) { return "doc.richtext" }
+        }
+        return "doc.fill"
+    }
+
+    var body: some View {
+        Group {
+            if let preview {
+                Image(nsImage: preview).resizable().scaledToFill()
+            } else {
+                Image(systemName: fallbackSymbol).resizable().scaledToFit()
+                    .padding(8).foregroundStyle(accent)
+            }
+        }
+        .frame(width: 38, height: 38)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(.white.opacity(0.12), lineWidth: 1))
+        .onAppear(perform: loadPreview)
+        .accessibilityHidden(true)
+    }
+
+    private func loadPreview() {
+        guard preview == nil, FileManager.default.fileExists(atPath: url.path) else { return }
+        let size = CGSize(width: 76, height: 76)
+        let request = QLThumbnailGenerator.Request(fileAt: url,
+                                                   size: size,
+                                                   scale: NSScreen.main?.backingScaleFactor ?? 2,
+                                                   representationTypes: .thumbnail)
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { representation, _ in
+            guard let cgImage = representation?.cgImage else { return }
+            let image = NSImage(cgImage: cgImage, size: size)
+            Task { @MainActor in self.preview = image }
+        }
     }
 }
 
@@ -950,8 +999,7 @@ struct NotchView: View {
                                         else { store.selectedTrayIDs.remove(entry.id) }
                                     }
                                 )).labelsHidden().toggleStyle(.checkbox)
-                                Image(systemName: entry.isDirectory ? "folder.fill" : "doc.fill")
-                                    .font(.system(size: 16)).foregroundStyle(store.highlightColor).frame(width: 24)
+                                TrayThumbnail(url: entry.url, accent: store.highlightColor)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(entry.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
                                     Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Folder")
@@ -1519,7 +1567,7 @@ private struct FloatingTrayView: View {
                                         else { store.selectedTrayIDs.remove(entry.id) }
                                     }
                                 )).labelsHidden().toggleStyle(.checkbox)
-                                Image(systemName: entry.isDirectory ? "folder.fill" : "doc.fill").foregroundStyle(store.highlightColor)
+                                TrayThumbnail(url: entry.url, accent: store.highlightColor)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(entry.name).lineLimit(1).font(.system(size: 11, weight: .medium))
                                     Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Folder")
