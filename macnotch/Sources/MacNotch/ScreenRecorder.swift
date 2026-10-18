@@ -122,11 +122,13 @@ private final class ScreenRecordingOutput: NSObject, SCStreamOutput, SCStreamDel
 
 private enum RecordingError: LocalizedError {
     case noDisplay
+    case windowUnavailable
     case writerInputUnavailable
 
     var errorDescription: String? {
         switch self {
         case .noDisplay: "No display is available to record."
+        case .windowUnavailable: "The selected window is no longer available. Refresh the window list and choose it again."
         case .writerInputUnavailable: "macOS could not configure the recording file."
         }
     }
@@ -138,13 +140,35 @@ final class ScreenRecorderController: ObservableObject {
     @Published private(set) var elapsed = 0
     @Published private(set) var message = "Record the primary display to Movies/MacNotch Recordings."
     @Published private(set) var latestRecording: URL?
+    @Published private(set) var availableWindows: [SCWindow] = []
+    @Published var selectedWindowID: CGWindowID?
 
     private var stream: SCStream?
     private var output: ScreenRecordingOutput?
     private var startedAt: Date?
     private var timer: Timer?
 
-    func start(includeSystemAudio: Bool, includeMicrophone: Bool) async {
+    func refreshWindows() async {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            availableWindows = content.windows
+                .filter { $0.windowID != 0 && $0.frame.width >= 240 && $0.frame.height >= 120 && $0.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier }
+                .sorted {
+                    let left = "\($0.owningApplication?.applicationName ?? "") \($0.title ?? "")"
+                    let right = "\($1.owningApplication?.applicationName ?? "") \($1.title ?? "")"
+                    return left.localizedCaseInsensitiveCompare(right) == .orderedAscending
+                }
+            if let selectedWindowID, !availableWindows.contains(where: { $0.windowID == selectedWindowID }) {
+                self.selectedWindowID = nil
+            }
+            if availableWindows.isEmpty { message = "No eligible app windows are visible. Full-display recording remains available." }
+        } catch {
+            availableWindows = []
+            message = "Could not list app windows. Allow MacNotch in Screen Recording settings, then try again."
+        }
+    }
+
+    func start(includeSystemAudio: Bool, includeMicrophone: Bool, windowID: CGWindowID? = nil) async {
         guard !isRecording else { return }
         if includeMicrophone {
             guard #available(macOS 15.0, *) else {
@@ -156,9 +180,29 @@ final class ScreenRecorderController: ObservableObject {
         var pendingOutput: ScreenRecordingOutput?
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            let mainDisplayID = (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
-            guard let display = content.displays.first(where: { $0.displayID == mainDisplayID }) ?? content.displays.first else {
-                throw RecordingError.noDisplay
+            let filter: SCContentFilter
+            let outputWidth: Int
+            let outputHeight: Int
+            let sourceDescription: String
+            if let windowID {
+                guard let window = content.windows.first(where: { $0.windowID == windowID }),
+                      window.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier,
+                      window.frame.width >= 240, window.frame.height >= 120 else {
+                    throw RecordingError.windowUnavailable
+                }
+                filter = SCContentFilter(desktopIndependentWindow: window)
+                outputWidth = max(2, Int(window.frame.width.rounded()) & ~1)
+                outputHeight = max(2, Int(window.frame.height.rounded()) & ~1)
+                sourceDescription = "window \(window.title?.isEmpty == false ? window.title! : (window.owningApplication?.applicationName ?? "App"))"
+            } else {
+                let mainDisplayID = (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+                guard let display = content.displays.first(where: { $0.displayID == mainDisplayID }) ?? content.displays.first else {
+                    throw RecordingError.noDisplay
+                }
+                filter = SCContentFilter(display: display, excludingApplications: content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }, exceptingWindows: [])
+                outputWidth = display.width
+                outputHeight = display.height
+                sourceDescription = "primary display"
             }
 
             let folder = FileManager.default.homeDirectoryForCurrentUser
@@ -169,7 +213,7 @@ final class ScreenRecorderController: ObservableObject {
             formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
             let destination = folder.appendingPathComponent("MacNotch-\(formatter.string(from: Date())).mov")
 
-            let output = try ScreenRecordingOutput(destination: destination, width: display.width, height: display.height,
+            let output = try ScreenRecordingOutput(destination: destination, width: outputWidth, height: outputHeight,
                                                    includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone)
             pendingOutput = output
             output.onFailure = { [weak self] error in
@@ -179,11 +223,9 @@ final class ScreenRecorderController: ObservableObject {
                     await self.stop()
                 }
             }
-            let appToExclude = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
-            let filter = SCContentFilter(display: display, excludingApplications: appToExclude, exceptingWindows: [])
             let configuration = SCStreamConfiguration()
-            configuration.width = display.width
-            configuration.height = display.height
+            configuration.width = outputWidth
+            configuration.height = outputHeight
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
             configuration.queueDepth = 5
             configuration.showsCursor = true
@@ -208,7 +250,7 @@ final class ScreenRecorderController: ObservableObject {
             startedAt = Date()
             elapsed = 0
             let audio = [includeSystemAudio ? "system audio" : nil, includeMicrophone ? "microphone" : nil].compactMap { $0 }.joined(separator: " and ")
-            message = "Recording the primary display\(audio.isEmpty ? " without audio" : " with \(audio)")."
+            message = "Recording the \(sourceDescription)\(audio.isEmpty ? " without audio" : " with \(audio)")."
             timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self, let startedAt = self.startedAt else { return }

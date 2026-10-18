@@ -28,7 +28,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Termi-Notch | Planned |
 | Productivity | Calendar and Tasks | Partial — on-demand events and upcoming reminders with explicit completion; creating/editing tasks and advanced calendar controls remain |
 | Productivity | Pomodoro | Partial — basic Focus timer exists |
-| Productivity | Meetings | Partial — local screen/system/mic recording and explicit on-device transcript; third-party meeting controls still needed |
+| Productivity | Meetings | Partial — local display or selected-window/system/mic recording and explicit on-device transcript; third-party meeting controls still needed |
 | Productivity | Notes | Partial — local quick note only |
 | Productivity | Thunderstorm launcher | Planned |
 | Productivity | Obsidian | Planned |

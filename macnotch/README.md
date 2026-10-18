@@ -1,4 +1,4 @@
-# MacNotch v0.21
+# MacNotch v0.22
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -8,7 +8,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Floating Shelf Shortcut:** use **Control–Option–F** from anywhere to open the file shelf. Its size and screen position are restored between launches.
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, and free disk space. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. It currently does not read third-party meeting, download, call, recording, or system-wide activity feeds.
-- **Screen Recording:** record the primary display to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from the captured video and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission.
+- **Screen Recording:** record the primary display or one selected visible app window to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from display captures and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission; if a selected window is no longer available, recording stops with an explanation rather than falling back to the whole display.
 - **Meeting Notes:** after recording, explicitly transcribe the latest movie or choose an earlier recording. MacNotch extracts audio locally, requires Apple's on-device speech recognition, and saves a `.txt` transcript beside the movie. It does not upload recordings; unsupported languages stop with an explanation.
 - **Screen Capture & Text:** capture the entire primary display or one visible app window on demand, drag a crop in the preview, draw cyan markup on a separate image copy, and recognize visible text locally with Apple Vision. Captures save as PNGs in `Pictures/MacNotch Captures`.
 - **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows track and artist, previous/play/pause/next controls, and a seekable progress bar. The compact notch stays small.
@@ -72,6 +72,10 @@ Added an image quick action that downsamples oversized images to a 2048-pixel ma
 ## v0.21
 
 Added clipboard search and explicit per-item pinning. Unpinned history remains opt-in and session-only. Pinned clips are saved locally without encryption, with 100-item and 8 MB limits and dedicated clear controls; no cross-device sync is included. Checks cover successful rich-content round-trip, corrupt-file handling, and size/count rejection without overwriting existing data.
+
+## v0.22
+
+Added recording of a selected visible application window as an alternative to the primary display. MacNotch refreshes eligible windows on demand and before recording, excludes itself, and fails safely if the chosen window closes before capture begins. System audio and optional microphone behavior remain explicit.
 
 ## v0.11
 

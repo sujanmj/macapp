@@ -1200,9 +1200,22 @@ struct ScreenRecordingControls: View {
                 Button { Task { await recorder.stop() } } label: { Label("Stop Recording", systemImage: "stop.fill") }
                     .buttonStyle(.borderedProminent).tint(.red)
             } else {
+                HStack(spacing: 8) {
+                    Picker("Capture", selection: $recorder.selectedWindowID) {
+                        Text("Primary display").tag(Optional<CGWindowID>.none)
+                        ForEach(recorder.availableWindows, id: \.windowID) { window in
+                            let app = window.owningApplication?.applicationName ?? "App"
+                            let title = window.title?.isEmpty == false ? window.title! : "Untitled window"
+                            Text("\(app) — \(title)").tag(Optional(window.windowID))
+                        }
+                    }.labelsHidden().frame(maxWidth: .infinity)
+                    Button { Task { await recorder.refreshWindows() } } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }.help("Refresh visible app windows")
+                }
                 Toggle("Include system audio", isOn: $includeSystemAudio)
                 if #available(macOS 15.0, *) { Toggle("Include microphone", isOn: $includeMicrophone) }
-                Button { Task { await recorder.start(includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone) } } label: {
+                Button { Task { await recorder.start(includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone, windowID: recorder.selectedWindowID) } } label: {
                     Label("Start Recording", systemImage: "record.circle")
                 }.buttonStyle(.borderedProminent).tint(.red)
             }
@@ -1237,9 +1250,10 @@ struct ScreenRecordingControls: View {
                     }.font(.system(size: 10))
                 }
             }
-            Text("MacNotch is excluded from the captured video. Screen recording and optional microphone capture require macOS permissions; videos stay on this Mac.")
+            Text("Record the primary display or a single visible app window. MacNotch is excluded from display captures. Screen recording and optional microphone capture require macOS permissions; videos stay on this Mac.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(14).modifier(GlassCard(tint: .red))
+            .task { await recorder.refreshWindows() }
     }
 }
 
