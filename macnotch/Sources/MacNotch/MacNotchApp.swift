@@ -112,7 +112,7 @@ final class NotchStore: ObservableObject {
     @Published var expanded = false
     @Published var cameraInset: CGFloat = 0
     @Published var compactWidth: CGFloat = 220
-    @Published var expandedHeight: CGFloat = 248
+    @Published var expandedHeight: CGFloat = 280
     @Published var pinned = false
     @Published var hideInFullScreen = UserDefaults.standard.object(forKey: "hideMacNotchInFullScreen") as? Bool ?? true
     @Published var shakeToRevealShelf = UserDefaults.standard.object(forKey: "macNotchShakeToRevealShelf") as? Bool ?? true
@@ -728,6 +728,7 @@ final class NotchStore: ObservableObject {
 struct NotchView: View {
     @ObservedObject var store: NotchStore
     @StateObject private var windowSnap = WindowSnapController()
+    @StateObject private var stayAwake = StayAwakeController()
     @State private var tab = "Home"
     @State private var scrubbing: Double?
     @State private var previewItem: TrayPreviewItem?
@@ -816,7 +817,7 @@ struct NotchView: View {
                 ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : 340
+                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
@@ -912,18 +913,27 @@ struct NotchView: View {
                         .font(.system(size: 11)).foregroundStyle(.mint)
                 }.buttonStyle(.plain)
                 Menu {
-                    Button("Left Half") { windowSnap.snap(.leftHalf) }
-                    Button("Right Half") { windowSnap.snap(.rightHalf) }
-                    Button("Maximize") { windowSnap.snap(.maximize) }
-                    Button("Center Window") { windowSnap.snap(.center) }
+                    Section("Window Snap") {
+                        Button("Left Half") { windowSnap.snap(.leftHalf) }
+                        Button("Right Half") { windowSnap.snap(.rightHalf) }
+                        Button("Maximize") { windowSnap.snap(.maximize) }
+                        Button("Center Window") { windowSnap.snap(.center) }
+                    }
+                    Section("Stay Awake") {
+                        Button("Keep Awake · 1 Hour") { stayAwake.start(for: 60 * 60) }
+                        Button("Keep Awake · 2 Hours") { stayAwake.start(for: 2 * 60 * 60) }
+                        Button("Keep Awake · 4 Hours") { stayAwake.start(for: 4 * 60 * 60) }
+                        if stayAwake.isActive { Button("Turn Off") { stayAwake.stop() } }
+                    }
                 } label: {
-                    Label("Snap Window", systemImage: "rectangle.split.2x1")
+                    Label("Tools", systemImage: "slider.horizontal.3")
                         .font(.system(size: 10, weight: .medium)).foregroundStyle(.cyan)
                 }.menuStyle(.borderlessButton)
-                if !windowSnap.status.isEmpty {
-                    Text(windowSnap.status).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
+                let statuses = [windowSnap.status, stayAwake.status].filter { !$0.isEmpty }
+                if !statuses.isEmpty {
+                    Text(statuses.joined(separator: " · ")).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
                 }
-            }.padding(14).frame(maxWidth: .infinity, minHeight: 148, alignment: .topLeading)
+            }.padding(14).frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
                 .modifier(GlassCard(tint: .orange))
         }
     }

@@ -55,7 +55,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Files | LocalSend | Planned |
 | System | Window Snap | Partial — snaps the frontmost app's focused window to left/right half, maximize, or center with Accessibility permission; multi-window layouts and per-display positioning remain |
 | System | Notifications | Planned |
-| System | Stay Awake | Planned |
+| System | Stay Awake | Partial — Home can temporarily prevent idle display/system sleep for 1, 2, or 4 hours, with automatic expiry and a manual stop; lid-close and emergency sleep remain macOS-controlled |
 | System | LiquidMouse | Planned |
 | System | Thaw menu-bar management | Planned |
 | System | Mechey keyboard sounds | Planned |
