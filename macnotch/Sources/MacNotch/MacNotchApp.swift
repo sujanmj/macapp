@@ -1771,8 +1771,17 @@ struct ScreenRecordingControls: View {
             if recorder.isRecording {
                 Text(String(format: "%02d:%02d", recorder.elapsed / 60, recorder.elapsed % 60))
                     .font(.system(size: 32, weight: .semibold, design: .rounded)).monospacedDigit()
-                Button { Task { await recorder.stop() } } label: { Label("Stop Recording", systemImage: "stop.fill") }
-                    .buttonStyle(.borderedProminent).tint(.red)
+                HStack(spacing: 8) {
+                    Button { Task { await recorder.stop() } } label: { Label("Stop Recording", systemImage: "stop.fill") }
+                        .buttonStyle(.borderedProminent).tint(.red)
+                    Button {
+                        Task {
+                            await recorder.stop()
+                            if let latest = recorder.latestRecording { await transcriber.transcribe(latest) }
+                        }
+                    } label: { Label("Stop & Transcribe", systemImage: "waveform") }
+                        .disabled(transcriber.isTranscribing)
+                }
             } else {
                 HStack(spacing: 8) {
                     Picker("Capture", selection: $recorder.selectedWindowID) {
