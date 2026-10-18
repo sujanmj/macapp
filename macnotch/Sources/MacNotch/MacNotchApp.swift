@@ -82,6 +82,10 @@ final class NotchStore: ObservableObject {
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
     @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
     @Published var selectedTrayIDs = Set<UUID>()
+    var trayURLsForSharing: [URL] {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        return entries.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
     @Published var metrics = MacMetrics()
     @Published var trayDropTargeted = false
     var showFloatingTray: (() -> Void)?
@@ -806,6 +810,8 @@ struct NotchView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
+                    .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
                 Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
                 Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
@@ -1046,6 +1052,8 @@ private struct FloatingTrayView: View {
                 Text("\(store.trayFiles.count) items").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
+                    .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
             }.font(.system(size: 10))
             Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2)

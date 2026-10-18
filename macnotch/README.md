@@ -1,10 +1,10 @@
-# MacNotch v0.24
+# MacNotch v0.25
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
 ## Working features
 
-- **File Tray:** drag files and folders onto the notch or add them through the file picker. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive from all or selected files and choose where to save it. For images, create a smaller JPEG copy with dimensions capped at 2048 pixels; transparency is flattened to white and the source stays untouched.
+- **File Tray:** drag files and folders onto the notch or add them through the file picker. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references or share them together; share, open, reveal, or remove individual items; create a ZIP archive from all or selected files and choose where to save it. For images, create a smaller JPEG copy with dimensions capped at 2048 pixels; transparency is flattened to white and the source stays untouched.
 - **Floating File Shelf:** use **Control–Option–F** from anywhere, or quickly reverse direction twice while carrying files to reveal the shelf near your pointer. Drop the in-progress group there, then move the whole group together. Its size and screen position are restored between launches. Shake reveal is on by default and can be disabled in Settings; it observes pointer movement only.
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, and free disk space. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. It currently does not read third-party meeting, download, call, recording, or system-wide activity feeds.
@@ -84,6 +84,10 @@ Added explicit reminder creation to the Reminders view, with an optional due dat
 ## v0.24
 
 Added an optional, enabled-by-default shake gesture that reveals the floating file shelf beside the pointer during an active drag. The drag continues into the panel, so the carried files can be dropped into the shelf without opening it first. A deterministic test covers deliberate reversals, ordinary movement, and cooldown behavior.
+
+## v0.25
+
+Added multi-file sharing from both the notch tray and floating shelf. The action shares the selected files, or the full tray when nothing is selected, through the macOS share sheet. Files that have been removed from disk are omitted, and originals are never moved or rewritten.
 
 ## v0.11
 
