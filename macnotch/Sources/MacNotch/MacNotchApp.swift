@@ -62,8 +62,12 @@ final class NotchStore: ObservableObject {
     private let mediaQueue = DispatchQueue(label: "MacNotch.media", qos: .userInitiated)
     @Published var track = "Connect Music or Spotify"
     @Published var artist = ""
+    @Published var albumArtwork: NSImage?
+    @Published var lyrics = ""
+    @Published var lyricsExpanded = false
     @Published var playing = false
     @Published var musicMessage = ""
+    private var artworkSourceKey: String?
     @Published var message = ""
     @Published var chat = ""
     @Published var answer = ""
@@ -454,7 +458,10 @@ final class NotchStore: ObservableObject {
         mediaBusy = true
         let chosen = player
         let durationExpression = chosen == "Spotify" ? "(duration of current track) / 1000" : "duration of current track"
-        let source = "with timeout of 2 seconds\nif application \"\(chosen)\" is running then\n tell application \"\(chosen)\"\n if player state is stopped then return {\"Nothing playing\", \"\", \"stopped\", 0, 0}\n return {name of current track, artist of current track, player state as string, player position, \(durationExpression)}\n end tell\nelse\n return {\"Open \(chosen) to connect\", \"\", \"stopped\", 0, 0}\nend if\nend timeout"
+        let details = chosen == "Spotify"
+            ? "set coverURL to \"\"\n try\n set coverURL to artwork url of current track\n end try\n return {name of current track, artist of current track, player state as string, player position, \(durationExpression), coverURL}"
+            : "set lyricText to \"\"\n set coverData to missing value\n try\n set lyricText to lyrics of current track\n end try\n try\n set coverData to raw data of artwork 1 of current track\n end try\n return {name of current track, artist of current track, player state as string, player position, \(durationExpression), lyricText, coverData}"
+        let source = "with timeout of 3 seconds\nif application \"\(chosen)\" is running then\n tell application \"\(chosen)\"\n if player state is stopped then return {\"Nothing playing\", \"\", \"stopped\", 0, 0}\n \(details)\n end tell\nelse\n return {\"Open \(chosen) to connect\", \"\", \"stopped\", 0, 0}\nend if\nend timeout"
         mediaQueue.async { [weak self] in
             var error: NSDictionary?
             let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
@@ -464,6 +471,10 @@ final class NotchStore: ObservableObject {
             let playing = result?.atIndex(3)?.stringValue == "playing"
             let position = result?.atIndex(4)?.doubleValue ?? 0
             let duration = result?.atIndex(5)?.doubleValue ?? 0
+            let coverURL = chosen == "Spotify" ? result?.atIndex(6)?.stringValue : nil
+            let lyrics = chosen == "Music" ? result?.atIndex(6)?.stringValue : nil
+            let coverData = chosen == "Music" ? result?.atIndex(7)?.data : nil
+            let coverImage = coverData.flatMap(MediaArtwork.image(data:))
             Task { @MainActor in
                 guard let self else { return }
                 self.mediaBusy = false
@@ -472,9 +483,38 @@ final class NotchStore: ObservableObject {
                 self.track = title; self.artist = artist; self.playing = playing
                 self.duration = duration.isFinite ? max(0, duration) : 0
                 self.position = position.isFinite ? min(self.duration, max(0, position)) : 0
+                if chosen == "Music" {
+                    self.artworkSourceKey = nil
+                    self.albumArtwork = coverImage
+                    self.lyrics = lyrics?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                } else {
+                    self.lyrics = ""
+                    self.loadSpotifyArtwork(coverURL, for: title)
+                }
                 self.musicMessage = ""; self.resize?()
             }
         }
+    }
+    private func loadSpotifyArtwork(_ value: String?, for trackTitle: String) {
+        guard let url = MediaArtwork.spotifyImageURL(value) else {
+            artworkSourceKey = nil; albumArtwork = nil; return
+        }
+        let key = url.absoluteString
+        guard artworkSourceKey != key else { return }
+        artworkSourceKey = key
+        albumArtwork = nil
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            guard let data, data.count <= 8 * 1024 * 1024,
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let image = MediaArtwork.image(data: data) else { return }
+            Task { @MainActor in
+                guard let self, self.player == "Spotify", self.track == trackTitle,
+                      self.artworkSourceKey == key else { return }
+                self.albumArtwork = image
+            }
+        }.resume()
     }
     func seek(_ value: Double) {
         guard value.isFinite, duration > 0 else { return }
@@ -1109,13 +1149,24 @@ private struct FloatingPlayerView: View {
                     store.duration = 0
                     store.refreshMusic()
                 }
+                Button {
+                    store.lyricsExpanded.toggle()
+                } label: {
+                    Label(store.lyricsExpanded ? "Hide Lyrics" : "Lyrics", systemImage: "text.quote")
+                }
+                .disabled(store.player != "Music" || store.lyrics.isEmpty)
+                .help("Lyrics are shown when Apple Music provides them for the current track")
             }
             HStack(spacing: 14) {
-                Image(systemName: store.playing ? "waveform" : "music.note")
-                    .font(.system(size: 30, weight: .medium))
-                    .foregroundStyle(.green)
-                    .frame(width: 64, height: 64)
-                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                Group {
+                    if let artwork = store.albumArtwork {
+                        Image(nsImage: artwork).resizable().scaledToFill()
+                    } else {
+                        Image(systemName: store.playing ? "waveform" : "music.note")
+                            .font(.system(size: 30, weight: .medium)).foregroundStyle(.green)
+                    }
+                }
+                .frame(width: 64, height: 64).background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16)).clipShape(RoundedRectangle(cornerRadius: 16))
                 VStack(alignment: .leading, spacing: 5) {
                     Text(store.track).font(.title3.bold()).lineLimit(2)
                     Text(store.artist.isEmpty ? store.player : store.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -1141,6 +1192,12 @@ private struct FloatingPlayerView: View {
                     Spacer()
                     Text(clock(store.duration))
                 }.font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            if store.lyricsExpanded {
+                ScrollView {
+                    Text(store.lyrics).font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                }
+                .frame(height: 110).padding(10).background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }
             if !store.musicMessage.isEmpty { Text(store.musicMessage).font(.caption2).foregroundStyle(.orange) }
             if !store.musicEnabled { Button("Connect to \(store.player)") { store.connectMusic() }.buttonStyle(.borderedProminent) }

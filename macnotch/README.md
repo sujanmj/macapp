@@ -1,4 +1,4 @@
-# MacNotch v0.30
+# MacNotch v0.31
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -11,7 +11,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Screen Recording:** record the primary display or one selected visible app window to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from display captures and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission; if a selected window is no longer available, recording stops with an explanation rather than falling back to the whole display.
 - **Meeting Notes:** after recording, explicitly transcribe the latest movie or choose an earlier recording. MacNotch extracts audio locally, requires Apple's on-device speech recognition, and saves a `.txt` transcript beside the movie. It does not upload recordings; unsupported languages stop with an explanation.
 - **Screen Capture & Text:** capture the entire primary display or one visible app window on demand, drag a crop in the preview, draw cyan markup on a separate image copy, and recognize visible text locally with Apple Vision. Captures save as PNGs in `Pictures/MacNotch Captures`.
-- **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows track and artist, previous/play/pause/next controls, and a seekable progress bar. Open the floating mini-player with **Control–Option–M** to keep controls available across apps; its size and location are restored between launches.
+- **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows album art, track and artist, previous/play/pause/next controls, and a seekable progress bar. Open the floating mini-player with **Control–Option–M** to keep controls available across apps; its size and location are restored between launches. Apple Music lyrics appear in a scrollable panel when the track provides them; Spotify lyrics and queue browsing are not included yet.
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
 - **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
@@ -31,7 +31,7 @@ The active ChatGPT or Gemini app can be recognized by its frontmost application 
 
 Run `bash scripts/package-utility.sh MacNotch` on macOS 14+ with Xcode and XcodeGen. It creates a universal Apple Silicon/Intel DMG and checksum. The beta is ad-hoc signed and unnotarized. macOS screen, microphone, player Automation permissions, file drag-and-drop, display arrangements, full-screen Spaces, and real recording output need testing on the target Mac. Gemini requests require a user-provided API key and network access.
 
-Run `bash scripts/check-utilities.sh` to check shared utility behavior, Gemini response handling, MacNotch system sampling, and local Vision OCR on a generated test image. The meeting transcription flow compiles into the universal app; real transcription depends on macOS language assets and user-granted Speech Recognition permission.
+Run `bash scripts/check-utilities.sh` to check shared utility behavior, Gemini response handling, MacNotch system sampling, artwork URL and image validation, and local Vision OCR on a generated test image. The meeting transcription flow compiles into the universal app; real transcription depends on macOS language assets and user-granted Speech Recognition permission.
 
 ## v0.12
 
@@ -104,6 +104,10 @@ Added a compact **Send** menu with the folder picker and up to six recent destin
 ## v0.30
 
 Added a compact floating **System Monitor** showing CPU, RAM, network upload/download, free disk space, and the top RAM-consuming process. Open it from the Widgets tab, menu bar, or **Control–Option–W**; it stays above normal windows and restores its size and position.
+
+## v0.31
+
+Added album artwork to the floating player for Apple Music and Spotify, plus a lyrics panel for lyrics supplied by the current Apple Music track. Spotify cover images are loaded from Spotify's published artwork URLs with HTTPS host validation and an 8 MB response cap. Spotify lyrics and music queue browsing remain future work.
 
 ## v0.29
 

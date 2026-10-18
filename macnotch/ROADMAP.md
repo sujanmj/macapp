@@ -15,7 +15,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | File Transform | Partial | Local ZIP creation, image downsampling to JPEG, and multi-PDF merge; audio/video transforms remain. |
 | Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |
 | Live Activities | Partial | MacNotch-owned music, focus, tray, recorder, and frontmost-app statuses; system and third-party feeds still needed. |
-| Floating player | Partial | Resizable floating Apple Music/Spotify mini-player with seeking and playback controls; queue, artwork, and lyrics remain. |
+| Floating player | Partial | Resizable floating Apple Music/Spotify mini-player with seeking, playback controls, and artwork; Apple Music lyrics are shown when available. Queue controls and Spotify lyrics remain. |
 | Lock screen | Planned | Lock-screen display surfaces and media/focus cards. |
 | Cloud sharing | Planned | Temporary file links with expiry and account/security design. |
 | iPhone sync/widgets | Planned | Pairing, encrypted sync, iOS widgets, and Live Activities. |
@@ -38,9 +38,9 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | DropClip | Planned |
 | Productivity | Xcode Builds | Planned |
 | Productivity | Things 3 | Planned |
-| Media | Spotify | Partial — playback controls and seeking; queue/art/lyrics still needed |
-| Media | Apple Music | Partial — playback controls and seeking; queue/art/lyrics still needed |
-| Media | Lyrics | Planned |
+| Media | Spotify | Partial — playback controls, seeking, and album artwork; queue and lyrics remain |
+| Media | Apple Music | Partial — playback controls, seeking, album artwork, and available track lyrics; queue remains |
+| Media | Lyrics | Partial — Apple Music-provided track lyrics in the floating player; synchronized line timing and Spotify lyrics remain |
 | Media | Audio Control | Planned |
 | Media | Kaset / YouTube Music | Planned |
 | AI | Remove Background | Planned |

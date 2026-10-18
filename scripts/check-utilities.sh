@@ -42,3 +42,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/PDFFileActions.swift scripts/macnotch-pdf-actions-tests.swift \
   -framework AppKit -framework PDFKit -o "$scratch/macnotch-pdf-actions-check"
 "$scratch/macnotch-pdf-actions-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/MediaArtwork.swift scripts/macnotch-media-artwork-tests.swift \
+  -framework AppKit -o "$scratch/macnotch-media-artwork-check"
+"$scratch/macnotch-media-artwork-check"
