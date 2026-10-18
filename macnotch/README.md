@@ -1,10 +1,10 @@
-# MacNotch v0.15
+# MacNotch v0.16
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
 ## Working features
 
-- **File Tray:** drag files and folders onto the notch or add them through the file picker. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive on the Desktop. The tray stores file paths and does not move or copy the originals.
+- **File Tray:** drag files and folders onto the notch or add them through the file picker. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive from all or selected files and choose where to save it. The tray stores file paths and does not move or copy the originals.
 - **Floating Shelf Shortcut:** use **Control–Option–F** from anywhere to open the file shelf. Its size and screen position are restored between launches.
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, and free disk space. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. It currently does not read third-party meeting, download, call, recording, or system-wide activity feeds.
@@ -47,6 +47,10 @@ Added a separate floating file shelf, available from the File Tray and menu bar.
 ## v0.15
 
 Added the global Control–Option–F shortcut for the floating shelf and restored the shelf's saved frame across launches.
+
+## v0.16
+
+ZIP creation now archives only the selected tray files when a selection exists, and asks where to save the archive. With no selection, it archives the full tray. The floating shelf exposes the same action; source files remain untouched.
 
 ## v0.11
 

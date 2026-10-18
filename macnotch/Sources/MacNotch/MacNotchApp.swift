@@ -221,9 +221,15 @@ final class NotchStore: ObservableObject {
         message = "Copied \(urls.count) file reference\(urls.count == 1 ? "" : "s"). Paste them into Finder or another app."
     }
     func zipTray() {
-        let urls = trayFiles.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
+        let candidates = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        let urls = candidates.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
         guard !urls.isEmpty else { message = "Add existing files to the tray before creating an archive."; return }
-        let destination = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/MacNotch-\(Int(Date().timeIntervalSince1970)).zip")
+        let panel = NSSavePanel()
+        panel.title = "Save MacNotch ZIP Archive"
+        panel.nameFieldStringValue = "MacNotch-\(Int(Date().timeIntervalSince1970)).zip"
+        panel.allowedContentTypes = [.zip]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else { message = "ZIP creation canceled."; return }
         Task.detached(priority: .userInitiated) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
@@ -718,8 +724,9 @@ struct NotchView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
                 Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
-                Button("Create ZIP") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
+                Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
                 Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
             }.font(.system(size: 10))
             Text("Select files and copy their references to paste them into Finder or another app. Sharing, opening, and ZIP creation leave the originals in place.").font(.caption2).foregroundStyle(.secondary)
