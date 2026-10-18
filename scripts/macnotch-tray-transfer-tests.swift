@@ -29,6 +29,11 @@ struct TrayTransferChecks {
         try FileManager.default.createDirectory(at: nestedDestination, withIntermediateDirectories: true)
         let nestedResult = TrayTransfer.copy([sourceFolder], to: nestedDestination)
         require(nestedResult.copied.isEmpty && nestedResult.failures.count == 1, "Copying a folder into itself must be rejected")
+
+        let history = (1...8).map { root.appendingPathComponent("folder-\($0)").path }
+        let updatedHistory = RecentTrayDestinations.adding(URL(fileURLWithPath: history[2]), to: history)
+        require(updatedHistory.first == history[2] && updatedHistory.count == 6, "Recent destinations should move to the front and stay capped")
+        require(updatedHistory.filter { $0 == history[2] }.count == 1, "Recent destinations should not be duplicated")
         print("MacNotch tray transfer checks passed")
     }
 }

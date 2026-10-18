@@ -82,6 +82,11 @@ final class NotchStore: ObservableObject {
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
     @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
     @Published var selectedTrayIDs = Set<UUID>()
+    @Published var recentTrayDestinationPaths = UserDefaults.standard.stringArray(forKey: "macNotchRecentTrayDestinations") ?? []
+    var recentTrayDestinations: [URL] {
+        recentTrayDestinationPaths.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+    }
     var trayURLsForSharing: [URL] {
         let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
         return entries.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -260,6 +265,20 @@ final class NotchStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let destination = panel.url else { message = "Folder copy canceled."; return }
+        copyTrayFiles(to: destination)
+    }
+    func copyTrayFiles(to destination: URL, remember: Bool = true) {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        let urls = entries.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty else { message = "Add existing files to the tray before sending them to a folder."; return }
+        guard (try? destination.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+            message = "That destination folder is no longer available. Choose another folder."
+            return
+        }
+        if remember {
+            recentTrayDestinationPaths = RecentTrayDestinations.adding(destination, to: recentTrayDestinationPaths)
+            UserDefaults.standard.set(recentTrayDestinationPaths, forKey: "macNotchRecentTrayDestinations")
+        }
         message = "Copying \(urls.count) tray item\(urls.count == 1 ? "" : "s")…"
         Task.detached(priority: .userInitiated) { [store = self] in
             let result = TrayTransfer.copy(urls, to: destination)
@@ -273,6 +292,10 @@ final class NotchStore: ObservableObject {
                 if !result.copied.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(result.copied) }
             }
         }
+    }
+    func clearRecentTrayDestinations() {
+        recentTrayDestinationPaths = []
+        UserDefaults.standard.removeObject(forKey: "macNotchRecentTrayDestinations")
     }
     var trayPDFCount: Int {
         let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
@@ -862,7 +885,18 @@ struct NotchView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
-                Button { store.sendTrayFilesToFolder() } label: { Label("Send", systemImage: "folder") }
+                Menu {
+                    Button("Choose Folder…") { store.sendTrayFilesToFolder() }
+                    if !store.recentTrayDestinations.isEmpty {
+                        Divider()
+                        ForEach(store.recentTrayDestinations, id: \.path) { destination in
+                            Button(destination.lastPathComponent) { store.copyTrayFiles(to: destination) }
+                                .help(destination.path)
+                        }
+                        Divider()
+                        Button("Clear Recent Folders", role: .destructive) { store.clearRecentTrayDestinations() }
+                    }
+                } label: { Label("Send", systemImage: "folder") }
                     .help("Copy selected items, or all items, to a folder")
                     .disabled(store.trayFiles.isEmpty)
                 Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
@@ -1110,7 +1144,18 @@ private struct FloatingTrayView: View {
                 Text("\(store.trayFiles.count) items").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
-                Button { store.sendTrayFilesToFolder() } label: { Label("Send", systemImage: "folder") }
+                Menu {
+                    Button("Choose Folder…") { store.sendTrayFilesToFolder() }
+                    if !store.recentTrayDestinations.isEmpty {
+                        Divider()
+                        ForEach(store.recentTrayDestinations, id: \.path) { destination in
+                            Button(destination.lastPathComponent) { store.copyTrayFiles(to: destination) }
+                                .help(destination.path)
+                        }
+                        Divider()
+                        Button("Clear Recent Folders", role: .destructive) { store.clearRecentTrayDestinations() }
+                    }
+                } label: { Label("Send", systemImage: "folder") }
                     .help("Copy selected items, or all items, to a folder")
                     .disabled(store.trayFiles.isEmpty)
                 Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }

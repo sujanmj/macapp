@@ -1,5 +1,12 @@
 import Foundation
 
+enum RecentTrayDestinations {
+    static func adding(_ url: URL, to paths: [String], limit: Int = 6) -> [String] {
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return [path] + paths.filter { URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath().path != path }.prefix(max(0, limit - 1))
+    }
+}
+
 struct TrayTransferFailure {
     let source: URL
     let message: String
