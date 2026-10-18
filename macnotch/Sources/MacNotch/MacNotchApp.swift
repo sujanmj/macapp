@@ -95,6 +95,7 @@ final class NotchStore: ObservableObject {
     @Published var trayDropTargeted = false
     var showFloatingTray: (() -> Void)?
     var showFloatingPlayer: (() -> Void)?
+    var showFloatingStats: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
     @Published var capture = ElementCaptureController()
     @Published var includeSystemAudio = UserDefaults.standard.object(forKey: "macNotchRecordSystemAudio") as? Bool ?? true
@@ -922,6 +923,8 @@ struct NotchView: View {
                     Text("Local readings refresh about every two seconds.").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button { store.showFloatingStats?() } label: { Label("Float", systemImage: "macwindow") }
+                    .help("Keep a compact system monitor above other windows")
                 Text(store.metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
             }
             HStack(spacing: 10) {
@@ -1150,6 +1153,62 @@ private struct FloatingPlayerView: View {
     private func clock(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "—" }
         return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+}
+
+private struct FloatingStatsView: View {
+    @ObservedObject var store: NotchStore
+
+    private var metrics: MacMetrics { store.metrics }
+    private var memoryFraction: Double { Double(metrics.memoryUsed) / Double(max(1, metrics.memoryTotal)) }
+    private var diskFraction: Double { Double(metrics.diskFree) / Double(max(1, metrics.diskTotal)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "waveform.path.ecg").foregroundStyle(store.highlightColor)
+                Text("System Monitor").font(.system(size: 13, weight: .semibold))
+                Circle().fill(.green).frame(width: 6, height: 6)
+                Spacer()
+                Text(metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                statsTile("CPU", value: String(format: "%.0f%%", metrics.cpuPercent), fraction: metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
+                statsTile("RAM", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryTotal), countStyle: .memory))", fraction: memoryFraction, symbol: "memorychip", tint: .purple)
+            }
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Label("Network", systemImage: "wifi").font(.system(size: 9, weight: .medium)).foregroundStyle(.cyan)
+                    HStack(spacing: 10) {
+                        Label("↓ \(speed(metrics.downloadBytesPerSecond))", systemImage: "arrow.down")
+                        Label("↑ \(speed(metrics.uploadBytesPerSecond))", systemImage: "arrow.up")
+                    }.font(.system(size: 10, weight: .medium, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+                }.frame(maxWidth: .infinity, minHeight: 55, alignment: .leading).padding(9).modifier(GlassCard(tint: .cyan))
+                statsTile("Disk free", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.diskFree), countStyle: .file), fraction: diskFraction, symbol: "internaldrive", tint: .mint)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "memorychip.fill").foregroundStyle(.purple)
+                Text("Top RAM").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                Text(metrics.topProcess ?? "Sampling…").font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 2)
+                Text(metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
+            }.padding(.horizontal, 9).frame(height: 29).modifier(GlassCard(tint: .purple))
+        }
+        .padding(12).frame(minWidth: 330, minHeight: 190)
+        .background(NotchGlass())
+    }
+
+    private func statsTile(_ title: String, value: String, fraction: Double, symbol: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: symbol).font(.system(size: 9, weight: .medium)).foregroundStyle(tint)
+            Text(value).font(.system(size: 11, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.72)
+            ProgressView(value: min(1, max(0, fraction))).tint(tint)
+        }.frame(maxWidth: .infinity, minHeight: 55, alignment: .leading).padding(9).modifier(GlassCard(tint: tint))
+    }
+
+    private func speed(_ bytesPerSecond: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytesPerSecond), countStyle: .memory) + "/s"
     }
 }
 
@@ -1682,7 +1741,7 @@ struct NotchSettings: View {
                 Text("Volume changes show the reported level when available. Brightness keys show direction only. Hardware-key visibility depends on macOS permissions/device; Apple’s own HUD remains enabled.").font(.caption)
                 Button("Input Monitoring Settings") { openPrivacy("Privacy_ListenEvent") }
                 Divider(); LoginToggle()
-                Text("⌃⌥N expands/collapses the notch panel; ⌃⌥F opens the floating file shelf. Hover to expand; pin to keep the notch panel open. Both controls respect the saved screen layout. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
+                Text("⌃⌥N expands/collapses the notch panel; ⌃⌥F opens the floating file shelf; ⌃⌥W opens the floating system monitor; ⌃⌥M opens the music player. Hover to expand; pin to keep the notch panel open. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
             }.padding(20)
         }.frame(width: 480, height: 450)
     }
@@ -1694,10 +1753,12 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     let shortcut = GlobalShortcut()
     let floatingTrayShortcut = GlobalShortcut()
     let floatingPlayerShortcut = GlobalShortcut()
+    let floatingStatsShortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
     var floatingPlayer: FloatingWindow?
+    var floatingStats: FloatingWindow?
     var displayObserver: NSObjectProtocol?
     var dragMonitors: [Any] = []
     var dragShakeDetector = DragShakeDetector()
@@ -1717,10 +1778,13 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
         floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
         floatingPlayer = FloatingWindow(title: "MacNotch Player", size: NSSize(width: 460, height: 260), content: FloatingPlayerView(store: store))
+        floatingStats = FloatingWindow(title: "MacNotch System Monitor", size: NSSize(width: 370, height: 230), content: FloatingStatsView(store: store))
         _ = floatingTray?.panel.setFrameAutosaveName("MacNotchFloatingFileShelf")
         _ = floatingPlayer?.panel.setFrameAutosaveName("MacNotchFloatingPlayer")
+        _ = floatingStats?.panel.setFrameAutosaveName("MacNotchFloatingSystemMonitor")
         store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
         store.showFloatingPlayer = { [weak self] in self?.showFloatingPlayer() }
+        store.showFloatingStats = { [weak self] in self?.showFloatingStats() }
         if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
             let point = NSEvent.mouseLocation
             Task { @MainActor in self?.handleFileDrag(at: point) }
@@ -1739,6 +1803,10 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingPlayerShortcut.action = { [weak self] in self?.showFloatingPlayer() }
         if !floatingPlayerShortcut.register(key: UInt32(kVK_ANSI_M), modifiers: UInt32(controlKey | optionKey)) {
             store.message = "Floating player shortcut unavailable; use the Music tab."
+        }
+        floatingStatsShortcut.action = { [weak self] in self?.showFloatingStats() }
+        if !floatingStatsShortcut.register(key: UInt32(kVK_ANSI_W), modifiers: UInt32(controlKey | optionKey)) {
+            store.message = "System monitor shortcut unavailable; use the menu bar or Widgets tab."
         }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.position() }
@@ -1789,6 +1857,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     }
     func showFloatingTray() { floatingTray?.show() }
     func showFloatingPlayer() { floatingPlayer?.show() }
+    func showFloatingStats() { floatingStats?.show() }
     func handleFileDrag(at point: CGPoint) {
         guard store.shakeToRevealShelf else { dragShakeDetector.reset(); return }
         if floatingTray?.panel.frame.insetBy(dx: -18, dy: -18).contains(point) == true {
@@ -1813,6 +1882,7 @@ struct MacNotchApp: App {
             Button("Show / Hide Panel") { delegate.toggle() }
             Button("Floating File Shelf   ⌃⌥F") { delegate.showFloatingTray() }
             Button("Floating Player   ⌃⌥M") { delegate.showFloatingPlayer() }
+            Button("System Monitor   ⌃⌥W") { delegate.showFloatingStats() }
             Button("Settings") { delegate.settings?.show() }
             Divider(); Button("Quit MacNotch") { NSApp.terminate(nil) }
         }
