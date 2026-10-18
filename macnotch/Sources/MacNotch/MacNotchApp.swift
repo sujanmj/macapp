@@ -65,6 +65,10 @@ final class NotchStore: ObservableObject {
     @Published var albumArtwork: NSImage?
     @Published var lyrics = ""
     @Published var lyricsExpanded = false
+    @Published var musicPlaylistRows: [MusicPlaylistEntry] = []
+    @Published var playlistExpanded = false
+    @Published var playlistLoading = false
+    @Published var playlistMessage = ""
     @Published var playing = false
     @Published var musicMessage = ""
     private var artworkSourceKey: String?
@@ -527,6 +531,51 @@ final class NotchStore: ObservableObject {
                 self.albumArtwork = image
             }
         }.resume()
+    }
+    func loadMusicPlaylist() {
+        guard player == "Music", musicEnabled else {
+            playlistMessage = "Connect Apple Music to browse its current playlist."
+            return
+        }
+        guard !playlistLoading else { return }
+        playlistLoading = true
+        playlistMessage = ""
+        let source = "with timeout of 5 seconds\nif application \"Music\" is running then\n tell application \"Music\"\n set trackCount to count of tracks of current playlist\n if trackCount is 0 then return {}\n set visibleCount to trackCount\n if visibleCount > 15 then set visibleCount to 15\n set currentID to \"\"\n try\n set currentID to persistent ID of current track\n end try\n set previewRows to {}\n repeat with rowNumber from 1 to visibleCount\n set trackRef to track rowNumber of current playlist\n set trackID to \"\"\n set trackArtist to \"\"\n try\n set trackID to persistent ID of trackRef\n end try\n try\n set trackArtist to artist of trackRef as text\n end try\n set isCurrent to (trackID is currentID)\n set end of previewRows to {rowNumber as integer, name of trackRef as text, trackArtist, isCurrent}\n end repeat\n return previewRows\n end tell\nelse\n return {}\nend if\nend timeout"
+        mediaQueue.async { [weak self] in
+            var error: NSDictionary?
+            let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
+            let failed = error != nil || result == nil
+            let entries = MusicPlaylistParser.parse(result)
+            Task { @MainActor in
+                guard let self else { return }
+                self.playlistLoading = false
+                guard self.player == "Music" else { return }
+                if failed {
+                    self.playlistMessage = "Could not read the current playlist. Check Music Automation permission."
+                    self.musicPlaylistRows = []
+                } else {
+                    self.musicPlaylistRows = entries
+                    self.playlistMessage = entries.isEmpty ? "No playlist tracks are available." : "Showing the first \(entries.count) tracks from the current playlist."
+                }
+            }
+        }
+    }
+    func playMusicPlaylistEntry(_ entry: MusicPlaylistEntry) {
+        guard player == "Music", musicEnabled, (1...15).contains(entry.index) else { return }
+        mediaQueue.async { [weak self] in
+            var error: NSDictionary?
+            NSAppleScript(source: "tell application \"Music\" to play track \(entry.index) of current playlist")?.executeAndReturnError(&error)
+            let failed = error != nil
+            Task { @MainActor in
+                guard let self, self.player == "Music" else { return }
+                if failed { self.playlistMessage = "Could not start that track. Check Music Automation permission." }
+                else {
+                    self.playlistMessage = "Playing \(entry.title)."
+                    self.refreshMusic()
+                    self.loadMusicPlaylist()
+                }
+            }
+        }
     }
     func seek(_ value: Double) {
         guard value.isFinite, duration > 0 else { return }
@@ -1178,6 +1227,14 @@ private struct FloatingPlayerView: View {
                 }
                 .disabled(store.player != "Music" || store.lyrics.isEmpty)
                 .help("Lyrics are shown when Apple Music provides them for the current track")
+                Button {
+                    store.playlistExpanded.toggle()
+                    if store.playlistExpanded { store.loadMusicPlaylist() }
+                } label: {
+                    Label("Playlist", systemImage: "list.number")
+                }
+                .disabled(store.player != "Music" || !store.musicEnabled)
+                .help("Browse the first 15 tracks in Apple Music's current playlist")
             }
             HStack(spacing: 14) {
                 Group {
@@ -1220,6 +1277,35 @@ private struct FloatingPlayerView: View {
                     Text(store.lyrics).font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
                 }
                 .frame(height: 110).padding(10).background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
+            if store.playlistExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    if store.playlistLoading {
+                        ProgressView("Loading playlist…").controlSize(.small)
+                    } else if store.musicPlaylistRows.isEmpty {
+                        Text(store.playlistMessage).font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 3) {
+                                ForEach(store.musicPlaylistRows) { entry in
+                                    Button { store.playMusicPlaylistEntry(entry) } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: entry.isCurrent ? "waveform" : "play.fill")
+                                                .font(.system(size: 9)).foregroundStyle(entry.isCurrent ? .green : .secondary)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(entry.title).font(.system(size: 10, weight: entry.isCurrent ? .semibold : .regular)).lineLimit(1)
+                                                Text(entry.artist).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                                            }
+                                            Spacer()
+                                            if entry.isCurrent { Text("NOW").font(.system(size: 8, weight: .bold)).foregroundStyle(.green) }
+                                        }.padding(.horizontal, 7).padding(.vertical, 4).contentShape(Rectangle())
+                                    }.buttonStyle(.plain)
+                                }
+                            }
+                        }.frame(height: 128)
+                        Text(store.playlistMessage).font(.system(size: 9)).foregroundStyle(.secondary)
+                    }
+                }.padding(9).background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }
             if !store.musicMessage.isEmpty { Text(store.musicMessage).font(.caption2).foregroundStyle(.orange) }
             if !store.musicEnabled { Button("Connect to \(store.player)") { store.connectMusic() }.buttonStyle(.borderedProminent) }

@@ -1,4 +1,4 @@
-# MacNotch v0.34
+# MacNotch v0.35
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -11,7 +11,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Screen Recording:** record the primary display or one selected visible app window to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from display captures and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission; if a selected window is no longer available, recording stops with an explanation rather than falling back to the whole display.
 - **Meeting Notes:** after recording, explicitly transcribe the latest movie or choose an earlier recording. MacNotch extracts audio locally, requires Apple's on-device speech recognition, and saves a `.txt` transcript beside the movie. It does not upload recordings; unsupported languages stop with an explanation.
 - **Screen Capture & Text:** capture the entire primary display or one visible app window on demand, drag a crop in the preview, draw cyan markup on a separate image copy, and recognize visible text locally with Apple Vision. Captures save as PNGs in `Pictures/MacNotch Captures`.
-- **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows album art, track and artist, previous/play/pause/next controls, and a seekable progress bar. Open the floating mini-player with **Control–Option–M** to keep controls available across apps; its size and location are restored between launches. Apple Music lyrics appear in a scrollable panel when the track provides them; Spotify lyrics and queue browsing are not included yet.
+- **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows album art, track and artist, previous/play/pause/next controls, and a seekable progress bar. Open the floating mini-player with **Control–Option–M** to keep controls available across apps; its size and location are restored between launches. Apple Music lyrics appear when the track provides them; its Playlist button previews and plays the first 15 tracks in the current playlist. Spotify playlist browsing and lyrics, and full queue management, remain future work.
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
 - **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
@@ -120,6 +120,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.35
+
+Added an Apple Music current-playlist preview in the floating player. It reads at most 15 track rows, marks the current track, and lets the user explicitly select one to play. Spotify does not expose equivalent playlist data through its installed AppleScript dictionary, so this view is Apple Music-only.
 
 ## v0.29
 

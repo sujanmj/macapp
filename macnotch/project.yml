@@ -14,8 +14,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macnotch
-        MARKETING_VERSION: '0.34.0'
-        CURRENT_PROJECT_VERSION: '34'
+        MARKETING_VERSION: '0.35.0'
+        CURRENT_PROJECT_VERSION: '35'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacNotch/Info.plist

@@ -46,3 +46,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/MediaArtwork.swift scripts/macnotch-media-artwork-tests.swift \
   -framework AppKit -o "$scratch/macnotch-media-artwork-check"
 "$scratch/macnotch-media-artwork-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/MediaPlaylist.swift scripts/macnotch-media-playlist-tests.swift \
+  -framework AppKit -o "$scratch/macnotch-media-playlist-check"
+"$scratch/macnotch-media-playlist-check"
