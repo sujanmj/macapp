@@ -63,6 +63,16 @@ final class FloatingWindow {
         if activate { NSApp.activate(ignoringOtherApps: true); panel.makeKeyAndOrderFront(nil) }
         else { panel.orderFrontRegardless() }
     }
+    func show(near pointer: CGPoint) {
+        guard pointer.x.isFinite, pointer.y.isFinite else { show(activate: false); return }
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main
+        let bounds = (screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? panel.frame).insetBy(dx: 8, dy: 8)
+        var origin = CGPoint(x: pointer.x - panel.frame.width * 0.45, y: pointer.y - panel.frame.height * 0.45)
+        origin.x = min(max(origin.x, bounds.minX), max(bounds.minX, bounds.maxX - panel.frame.width))
+        origin.y = min(max(origin.y, bounds.minY), max(bounds.minY, bounds.maxY - panel.frame.height))
+        panel.setFrameOrigin(origin)
+        show(activate: false)
+    }
     func hide() { panel.orderOut(nil) }
 }
 

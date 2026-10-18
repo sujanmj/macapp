@@ -45,6 +45,7 @@ final class NotchStore: ObservableObject {
     @Published var expandedHeight: CGFloat = 248
     @Published var pinned = false
     @Published var hideInFullScreen = UserDefaults.standard.object(forKey: "hideMacNotchInFullScreen") as? Bool ?? true
+    @Published var shakeToRevealShelf = UserDefaults.standard.object(forKey: "macNotchShakeToRevealShelf") as? Bool ?? true
     @Published var highlightPreset = UserDefaults.standard.string(forKey: "macNotchHighlightPreset") ?? "Electric Blue"
     var resize: (() -> Void)?
     var applyFullScreenVisibility: ((Bool) -> Void)?
@@ -114,6 +115,10 @@ final class NotchStore: ObservableObject {
         hideInFullScreen = hidden
         UserDefaults.standard.set(hidden, forKey: "hideMacNotchInFullScreen")
         applyFullScreenVisibility?(hidden)
+    }
+    func setShakeToRevealShelf(_ enabled: Bool) {
+        shakeToRevealShelf = enabled
+        UserDefaults.standard.set(enabled, forKey: "macNotchShakeToRevealShelf")
     }
     func showHardware(_ change: HardwareChange) {
         guard hardwareEnabled else { return }
@@ -1478,6 +1483,8 @@ struct NotchSettings: View {
                 TextField("Gemini model", text: $store.model)
                 Toggle("Volume and brightness feedback", isOn: Binding(get: { store.hardwareEnabled }, set: { store.setHardware($0) }))
                 Toggle("Hide MacNotch in full-screen apps", isOn: Binding(get: { store.hideInFullScreen }, set: { store.setHideInFullScreen($0) }))
+                Toggle("Reveal file shelf when shaking a drag", isOn: Binding(get: { store.shakeToRevealShelf }, set: { store.setShakeToRevealShelf($0) }))
+                Text("While carrying files, quickly reverse direction twice to bring the shelf beside the pointer. Drag tracking uses pointer movement only; files are read only when dropped.").font(.caption)
                 Toggle("Capture system audio in screen recordings", isOn: Binding(get: { store.includeSystemAudio }, set: { value in store.includeSystemAudio = value; UserDefaults.standard.set(value, forKey: "macNotchRecordSystemAudio") }))
                 if #available(macOS 15.0, *) {
                     Toggle("Capture microphone in screen recordings", isOn: Binding(get: { store.includeMicrophone }, set: { value in store.includeMicrophone = value; UserDefaults.standard.set(value, forKey: "macNotchRecordMicrophone") }))
@@ -1504,6 +1511,8 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
     var displayObserver: NSObjectProtocol?
+    var dragMonitors: [Any] = []
+    var dragShakeDetector = DragShakeDetector()
     func applicationDidFinishLaunching(_ notification: Notification) {
         window = FloatingWindow(title: "MacNotch", size: NSSize(width: 500, height: 300), content: NotchView(store: store))
         window?.panel.styleMask = [.borderless, .nonactivatingPanel]
@@ -1521,6 +1530,15 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
         _ = floatingTray?.panel.setFrameAutosaveName("MacNotchFloatingFileShelf")
         store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
+        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in self?.handleFileDrag(at: point) }
+        }) { dragMonitors.append(monitor) }
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] event in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in self?.handleFileDrag(at: point) }
+            return event
+        }) { dragMonitors.append(monitor) }
         shortcut.action = { [weak self] in self?.toggle() }
         if !shortcut.register(key: UInt32(kVK_ANSI_N), modifiers: UInt32(controlKey | optionKey)) { store.message = "Shortcut unavailable; use the menu bar." }
         floatingTrayShortcut.action = { [weak self] in self?.showFloatingTray() }
@@ -1575,7 +1593,20 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         window?.panel.orderFrontRegardless()
     }
     func showFloatingTray() { floatingTray?.show() }
-    func applicationWillTerminate(_ notification: Notification) { if let displayObserver { NotificationCenter.default.removeObserver(displayObserver) } }
+    func handleFileDrag(at point: CGPoint) {
+        guard store.shakeToRevealShelf else { dragShakeDetector.reset(); return }
+        if floatingTray?.panel.frame.insetBy(dx: -18, dy: -18).contains(point) == true {
+            dragShakeDetector.reset()
+            return
+        }
+        if dragShakeDetector.update(point: point, time: ProcessInfo.processInfo.systemUptime) {
+            floatingTray?.show(near: point)
+        }
+    }
+    func applicationWillTerminate(_ notification: Notification) {
+        if let displayObserver { NotificationCenter.default.removeObserver(displayObserver) }
+        dragMonitors.forEach { NSEvent.removeMonitor($0) }
+    }
 }
 
 @main

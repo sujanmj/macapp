@@ -30,3 +30,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/ClipboardPinStore.swift scripts/macnotch-clipboard-pin-tests.swift \
   -o "$scratch/macnotch-clipboard-pin-check"
 "$scratch/macnotch-clipboard-pin-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/DragShakeDetector.swift scripts/macnotch-drag-shake-tests.swift \
+  -o "$scratch/macnotch-drag-shake-check"
+"$scratch/macnotch-drag-shake-check"
