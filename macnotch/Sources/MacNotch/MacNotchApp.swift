@@ -249,6 +249,31 @@ final class NotchStore: ObservableObject {
         guard pasteboard.writeObjects(urls) else { message = "Could not copy these file references."; return }
         message = "Copied \(urls.count) file reference\(urls.count == 1 ? "" : "s"). Paste them into Finder or another app."
     }
+    func sendTrayFilesToFolder() {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        let urls = entries.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty else { message = "Add existing files to the tray before sending them to a folder."; return }
+        let panel = NSOpenPanel()
+        panel.title = "Copy Tray Items to Folder"
+        panel.prompt = "Copy Here"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let destination = panel.url else { message = "Folder copy canceled."; return }
+        message = "Copying \(urls.count) tray item\(urls.count == 1 ? "" : "s")…"
+        Task.detached(priority: .userInitiated) { [store = self] in
+            let result = TrayTransfer.copy(urls, to: destination)
+            await MainActor.run {
+                let names = result.copied.map(\.lastPathComponent)
+                if result.failures.isEmpty {
+                    store.message = "Copied \(names.count) item\(names.count == 1 ? "" : "s") to \(destination.lastPathComponent). Originals are unchanged."
+                } else {
+                    store.message = "Copied \(names.count); \(result.failures.count) could not be copied. Originals are unchanged."
+                }
+                if !result.copied.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(result.copied) }
+            }
+        }
+    }
     func zipTray() {
         let candidates = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
         let urls = candidates.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -810,6 +835,9 @@ struct NotchView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Button { store.sendTrayFilesToFolder() } label: { Label("Send", systemImage: "folder") }
+                    .help("Copy selected items, or all items, to a folder")
+                    .disabled(store.trayFiles.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
@@ -1052,6 +1080,9 @@ private struct FloatingTrayView: View {
                 Text("\(store.trayFiles.count) items").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Button { store.sendTrayFilesToFolder() } label: { Label("Send", systemImage: "folder") }
+                    .help("Copy selected items, or all items, to a folder")
+                    .disabled(store.trayFiles.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)

@@ -34,3 +34,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/DragShakeDetector.swift scripts/macnotch-drag-shake-tests.swift \
   -o "$scratch/macnotch-drag-shake-check"
 "$scratch/macnotch-drag-shake-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/TrayTransfer.swift scripts/macnotch-tray-transfer-tests.swift \
+  -o "$scratch/macnotch-tray-transfer-check"
+"$scratch/macnotch-tray-transfer-check"
