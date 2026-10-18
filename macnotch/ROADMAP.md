@@ -10,7 +10,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | --- | --- | --- |
 | Dynamic notch and island | Partial | Compact black notch, glass panel, saved accent colors, fullscreen preference, and external-display islands with live CPU/RAM/network cards; configurable per-display widgets and layouts remain. |
 | File tray | Partial | Persistent path list, file picker/drop, search by file or parent folder, visible-result selection, Quick Look thumbnails and full in-app preview, drag-out, open/reveal/remove, ZIP, collision-safe copy to chosen/recent folders; destination-aware transient shelf and quick actions still needed. |
-| Floating file tray | Partial | Separate shelf with drop-in, drag-out, multi-select copy, and pointer shake-to-reveal; auto-hide, multiple trays, and destination-aware quick actions remain. |
+| Floating file tray | Partial | Separate shelf with drop-in, drag-out, multi-select copy, Quick Look preview, visible selection count, and pointer shake-to-reveal; auto-hide, multiple trays, and destination-aware quick actions remain. |
 | Quick Actions | Partial | Finder add-to-tray service, smaller JPEG copy, selected/all multi-file sharing, recent copy destinations, and PDF merging; configurable action recipes and broader file types remain. |
 | File Transform | Partial | Local ZIP creation, image downsampling to JPEG, and multi-PDF merge; audio/video transforms remain. |
 | Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |

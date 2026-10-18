@@ -1,4 +1,4 @@
-# MacNotch v0.45
+# MacNotch v0.46
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -124,6 +124,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.46
+
+Improved the floating file shelf with a one-click Quick Look preview and made the selected-item count visible in both tray surfaces. Removed duplicate Quick Look commands from the main tray menu.
 
 ## v0.35
 

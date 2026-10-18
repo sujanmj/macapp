@@ -169,6 +169,9 @@ final class NotchStore: ObservableObject {
                 || $0.url.deletingLastPathComponent().lastPathComponent.localizedStandardContains(query)
         }
     }
+    var selectedExistingTrayCount: Int {
+        trayFiles.filter { selectedTrayIDs.contains($0.id) && FileManager.default.fileExists(atPath: $0.path) }.count
+    }
     @Published var recentTrayDestinationPaths = UserDefaults.standard.stringArray(forKey: "macNotchRecentTrayDestinations") ?? []
     var recentTrayDestinations: [URL] {
         recentTrayDestinationPaths.map { URL(fileURLWithPath: $0, isDirectory: true) }
@@ -1103,14 +1106,12 @@ struct NotchView: View {
                             .draggable(entry.url)
                             .contextMenu {
                                 Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
-                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
                                 Button("Copy Path") {
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(entry.path, forType: .string)
                                     store.message = "Copied file path."
                                 }
                                 Button("Show in Finder") { store.revealTrayEntry(entry) }
-                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
                                 if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
                                     Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
                                 }
@@ -1121,7 +1122,7 @@ struct NotchView: View {
                 }.frame(height: 155)
             }
             HStack(spacing: 10) {
-                Text(store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown")
+                Text("\(store.selectedExistingTrayCount) selected · " + (store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown"))
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
@@ -1669,6 +1670,8 @@ private struct FloatingTrayView: View {
                                         .font(.system(size: 9)).foregroundStyle(.secondary)
                                 }
                                 Spacer(minLength: 2)
+                                Button { previewItem = TrayPreviewItem(url: entry.url) } label: { Image(systemName: "eye") }
+                                    .help("Quick Look")
                                 Button { store.openTrayEntry(entry) } label: { Image(systemName: "arrow.up.forward.app") }.help("Open")
                                 Button { store.removeTrayEntry(entry) } label: { Image(systemName: "xmark.circle") }.help("Remove")
                             }
@@ -1676,6 +1679,7 @@ private struct FloatingTrayView: View {
                             .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
                             .draggable(entry.url)
                             .contextMenu {
+                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
                                 if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
                                     Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
                                 }
@@ -1688,7 +1692,7 @@ private struct FloatingTrayView: View {
                 .frame(minHeight: 100, maxHeight: 260)
             }
             HStack(spacing: 8) {
-                Text(store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown").font(.caption).foregroundStyle(.secondary)
+                Text("\(store.selectedExistingTrayCount) selected · " + (store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
                 Menu {
