@@ -186,6 +186,7 @@ final class NotchStore: ObservableObject {
     var showFloatingTray: (() -> Void)?
     var showFloatingPlayer: (() -> Void)?
     var showFloatingStats: (() -> Void)?
+    var showMainNotch: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
     let calendarEventsController = CalendarEventsController()
     let calendarTasksController = CalendarTasksController()
@@ -2177,6 +2178,86 @@ struct NotchSettings: View {
     }
 }
 
+private struct DisplayIslandView: View {
+    @ObservedObject var store: NotchStore
+    let onExpandedChanged: (Bool) -> Void
+    @State private var expanded = false
+
+    private var icon: String {
+        if store.recording { return "record.circle.fill" }
+        if store.playing { return "music.note" }
+        if store.hardwareHUD != nil { return "speaker.wave.2.fill" }
+        return "sparkles"
+    }
+
+    private var title: String {
+        if store.recording { return "Recording" }
+        if store.playing { return store.track }
+        if let hud = store.hardwareHUD { return hud.label }
+        return "MacNotch"
+    }
+
+    private var detail: String {
+        if store.recording {
+            return String(format: "%02d:%02d elapsed", store.recordingSeconds / 60, store.recordingSeconds % 60)
+        }
+        if store.playing { return store.artist }
+        return "Productivity island"
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: icon).font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(store.recording ? .red : store.playing ? .green : store.highlightColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                    if expanded { Text(detail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1) }
+                }
+                Spacer(minLength: 2)
+                if store.playing {
+                    Button { store.media("previous track") } label: { Image(systemName: "backward.fill") }.help("Previous track")
+                    Button { store.media("playpause") } label: { Image(systemName: store.playing ? "pause.fill" : "play.fill") }.help("Play or pause")
+                    Button { store.media("next track") } label: { Image(systemName: "forward.fill") }.help("Next track")
+                }
+                Button {
+                    expanded.toggle()
+                    onExpandedChanged(expanded)
+                } label: {
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                }.help(expanded ? "Collapse island" : "Expand island")
+            }.buttonStyle(.plain)
+            if expanded {
+                Divider().overlay(.white.opacity(0.12))
+                HStack(spacing: 7) {
+                    islandAction("Tray", symbol: "tray.full.fill") { store.showFloatingTray?() }
+                    islandAction("Player", symbol: "waveform") { store.showFloatingPlayer?() }
+                    islandAction("Widgets", symbol: "chart.bar.fill") { store.showFloatingStats?() }
+                    islandAction("Main Notch", symbol: "arrow.up.to.line") { store.showMainNotch?() }
+                }
+            }
+        }
+        .padding(.horizontal, 11).padding(.vertical, 8)
+        .frame(width: expanded ? 320 : 220, height: expanded ? 86 : 38)
+        .background {
+            RoundedRectangle(cornerRadius: expanded ? 20 : 18).fill(.ultraThinMaterial)
+                .overlay(RoundedRectangle(cornerRadius: expanded ? 20 : 18).fill(.black.opacity(0.78)))
+        }
+        .overlay(RoundedRectangle(cornerRadius: expanded ? 20 : 18).stroke(.white.opacity(0.16), lineWidth: 0.8))
+        .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
+        .foregroundStyle(.white)
+    }
+
+    private func islandAction(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol).font(.system(size: 9, weight: .medium))
+                .frame(maxWidth: .infinity).padding(.vertical, 6)
+                .background(.white.opacity(0.08), in: Capsule())
+        }.buttonStyle(.plain)
+    }
+}
+
 @MainActor
 final class NotchDelegate: NSObject, NSApplicationDelegate {
     let store = NotchStore()
@@ -2189,6 +2270,8 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     var floatingTray: FloatingWindow?
     var floatingPlayer: FloatingWindow?
     var floatingStats: FloatingWindow?
+    var displayIslands: [UInt32: FloatingWindow] = [:]
+    var expandedDisplayIslands = Set<UInt32>()
     var displayObserver: NSObjectProtocol?
     var dragMonitors: [Any] = []
     var dragShakeDetector = DragShakeDetector()
@@ -2201,10 +2284,13 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         window?.panel.isMovableByWindowBackground = false
         window?.panel.level = .statusBar
         store.applyFullScreenVisibility = { [weak self] hide in
-            self?.window?.panel.collectionBehavior = hide ? [.canJoinAllSpaces] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+            self?.applyFullScreenVisibility(hide)
         }
         store.applyFullScreenVisibility?(store.hideInFullScreen)
-        store.resize = { [weak self] in self?.position() }
+        store.resize = { [weak self] in
+            self?.position()
+            self?.positionDisplayIslands()
+        }
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
         floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
         floatingPlayer = FloatingWindow(title: "MacNotch Player", size: NSSize(width: 460, height: 260), content: FloatingPlayerView(store: store))
@@ -2215,6 +2301,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
         store.showFloatingPlayer = { [weak self] in self?.showFloatingPlayer() }
         store.showFloatingStats = { [weak self] in self?.showFloatingStats() }
+        store.showMainNotch = { [weak self] in self?.showMainNotch() }
         if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
             let point = NSEvent.mouseLocation
             Task { @MainActor in self?.handleFileDrag(at: point) }
@@ -2239,11 +2326,14 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
             store.message = "System monitor shortcut unavailable; use the menu bar or Widgets tab."
         }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.position() }
+            Task { @MainActor in
+                self?.position()
+                self?.positionDisplayIslands()
+            }
         }
         NSApp.servicesProvider = self
         NSUpdateDynamicServices()
-        position(animated: false); store.start(); window?.show(activate: false)
+        position(animated: false); positionDisplayIslands(); store.start(); window?.show(activate: false)
     }
     @objc func addFilesToTray(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         let urls = (pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) ?? [])
@@ -2260,7 +2350,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         window?.panel.orderFrontRegardless()
     }
     func position(animated: Bool = true) {
-        guard let screen = window?.panel.screen ?? NSScreen.main ?? NSScreen.screens.first,
+        guard let screen = NSScreen.screens.first(where: { $0.auxiliaryTopLeftArea != nil }) ?? NSScreen.main ?? NSScreen.screens.first,
               let panel = window?.panel else { return }
         let inset = screen.safeAreaInsets.top
         store.cameraInset = inset
@@ -2288,6 +2378,71 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     func showFloatingTray() { floatingTray?.show() }
     func showFloatingPlayer() { floatingPlayer?.show() }
     func showFloatingStats() { floatingStats?.show() }
+    func showMainNotch() {
+        store.expanded = true
+        store.pinned = true
+        position()
+        window?.panel.orderFrontRegardless()
+    }
+    private func screenID(_ screen: NSScreen) -> UInt32? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+    private func positionDisplayIslands() {
+        let screens = NSScreen.screens
+        let primary = screens.first(where: { $0.auxiliaryTopLeftArea != nil }) ?? NSScreen.main ?? screens.first
+        let primaryID = primary.flatMap(screenID)
+        let external = screens.filter { screen in
+            guard let id = screenID(screen) else { return false }
+            return id != primaryID
+        }
+        let validIDs = Set(external.compactMap(screenID))
+        for id in displayIslands.keys.filter({ !validIDs.contains($0) }) {
+            displayIslands[id]?.panel.orderOut(nil)
+            displayIslands.removeValue(forKey: id)
+            expandedDisplayIslands.remove(id)
+        }
+        for screen in external {
+            guard let id = screenID(screen) else { continue }
+            let island = displayIslands[id] ?? makeDisplayIsland(for: id)
+            displayIslands[id] = island
+            positionDisplayIsland(island, on: screen, expanded: expandedDisplayIslands.contains(id))
+        }
+    }
+    private func makeDisplayIsland(for id: UInt32) -> FloatingWindow {
+        let view = DisplayIslandView(store: store) { [weak self] expanded in
+            self?.setDisplayIslandExpanded(id, expanded: expanded)
+        }
+        let island = FloatingWindow(title: "MacNotch Display Island", size: NSSize(width: 220, height: 38), content: view)
+        island.panel.styleMask = [.borderless, .nonactivatingPanel]
+        island.panel.isOpaque = false
+        island.panel.backgroundColor = .clear
+        island.panel.hasShadow = false
+        island.panel.isMovableByWindowBackground = false
+        island.panel.level = .statusBar
+        island.panel.collectionBehavior = store.hideInFullScreen ? [.canJoinAllSpaces] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+        return island
+    }
+    private func setDisplayIslandExpanded(_ id: UInt32, expanded: Bool) {
+        if expanded { expandedDisplayIslands.insert(id) }
+        else { expandedDisplayIslands.remove(id) }
+        guard let screen = NSScreen.screens.first(where: { screenID($0) == id }),
+              let island = displayIslands[id] else { return }
+        positionDisplayIsland(island, on: screen, expanded: expanded)
+    }
+    private func positionDisplayIsland(_ island: FloatingWindow, on screen: NSScreen, expanded: Bool) {
+        let size = NSSize(width: expanded ? 320 : 220, height: expanded ? 86 : 38)
+        let frame = NSRect(x: screen.frame.midX - size.width / 2,
+                           y: screen.frame.maxY - size.height,
+                           width: size.width, height: size.height)
+        if island.panel.frame != frame { island.panel.setFrame(frame, display: true) }
+        island.panel.orderFrontRegardless()
+    }
+    private func applyFullScreenVisibility(_ hide: Bool) {
+        window?.panel.collectionBehavior = hide ? [.canJoinAllSpaces] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+        for island in displayIslands.values {
+            island.panel.collectionBehavior = hide ? [.canJoinAllSpaces] : [.canJoinAllSpaces, .fullScreenAuxiliary]
+        }
+    }
     func handleFileDrag(at point: CGPoint) {
         guard store.shakeToRevealShelf else { dragShakeDetector.reset(); return }
         if floatingTray?.panel.frame.insetBy(dx: -18, dy: -18).contains(point) == true {
