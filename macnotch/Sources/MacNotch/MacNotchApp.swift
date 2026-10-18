@@ -138,7 +138,16 @@ final class NotchStore: ObservableObject {
     @Published var sessionTokens = 0
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
     @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
+    @Published var traySearch = ""
     @Published var selectedTrayIDs = Set<UUID>()
+    var visibleTrayFiles: [TrayEntry] {
+        let query = traySearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return trayFiles }
+        return trayFiles.filter {
+            $0.name.localizedStandardContains(query)
+                || $0.url.deletingLastPathComponent().lastPathComponent.localizedStandardContains(query)
+        }
+    }
     @Published var recentTrayDestinationPaths = UserDefaults.standard.stringArray(forKey: "macNotchRecentTrayDestinations") ?? []
     var recentTrayDestinations: [URL] {
         recentTrayDestinationPaths.map { URL(fileURLWithPath: $0, isDirectory: true) }
@@ -318,6 +327,12 @@ final class NotchStore: ObservableObject {
     func selectAllTrayFiles() {
         if !trayFiles.isEmpty && selectedTrayIDs.count == trayFiles.count { selectedTrayIDs.removeAll() }
         else { selectedTrayIDs = Set(trayFiles.map(\.id)) }
+    }
+    func toggleSelection(of entries: [TrayEntry]) {
+        let ids = Set(entries.map(\.id))
+        guard !ids.isEmpty else { return }
+        if ids.isSubset(of: selectedTrayIDs) { selectedTrayIDs.subtract(ids) }
+        else { selectedTrayIDs.formUnion(ids) }
     }
     func copySelectedTrayFiles() {
         let urls = trayFiles.filter { selectedTrayIDs.contains($0.id) && FileManager.default.fileExists(atPath: $0.path) }.map { $0.url as NSURL }
@@ -988,9 +1003,17 @@ struct NotchView: View {
                 .background(store.highlightColor.opacity(store.trayDropTargeted ? 0.22 : 0.08), in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(store.highlightColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
             } else {
+                TextField("Search files or folders", text: $store.traySearch)
+                    .textFieldStyle(.roundedBorder)
                 ScrollView {
                     LazyVStack(spacing: 5) {
-                        ForEach(store.trayFiles) { entry in
+                        if store.visibleTrayFiles.isEmpty {
+                            VStack(spacing: 5) {
+                                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                                Text("No files match this search").font(.caption).foregroundStyle(.secondary)
+                            }.frame(maxWidth: .infinity, minHeight: 80)
+                        }
+                        ForEach(store.visibleTrayFiles) { entry in
                             HStack(spacing: 10) {
                                 Toggle("Select \(entry.name)", isOn: Binding(
                                     get: { store.selectedTrayIDs.contains(entry.id) },
@@ -1036,7 +1059,7 @@ struct NotchView: View {
                 }.frame(height: 155)
             }
             HStack(spacing: 10) {
-                Text("\(store.trayFiles.count) item\(store.trayFiles.count == 1 ? "" : "s")")
+                Text(store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown")
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
@@ -1060,7 +1083,8 @@ struct NotchView: View {
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
-                Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
+                let visibleIDs = Set(store.visibleTrayFiles.map(\.id))
+                Button(visibleIDs.isSubset(of: store.selectedTrayIDs) ? "Deselect Visible" : "Select Visible") { store.toggleSelection(of: store.visibleTrayFiles) }.disabled(visibleIDs.isEmpty)
                 Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
             }.font(.system(size: 10))
             Text("Select files and copy their references to paste them into Finder or another app. Sharing, opening, and ZIP creation leave the originals in place.").font(.caption2).foregroundStyle(.secondary)
@@ -1556,9 +1580,17 @@ private struct FloatingTrayView: View {
                     .background(store.highlightColor.opacity(targeted ? 0.24 : 0.10), in: RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(store.highlightColor.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
             } else {
+                TextField("Search files or folders", text: $store.traySearch)
+                    .textFieldStyle(.roundedBorder)
                 ScrollView {
                     LazyVStack(spacing: 6) {
-                        ForEach(store.trayFiles) { entry in
+                        if store.visibleTrayFiles.isEmpty {
+                            VStack(spacing: 5) {
+                                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                                Text("No files match this search").font(.caption).foregroundStyle(.secondary)
+                            }.frame(maxWidth: .infinity, minHeight: 80)
+                        }
+                        ForEach(store.visibleTrayFiles) { entry in
                             HStack(spacing: 8) {
                                 Toggle("Select \(entry.name)", isOn: Binding(
                                     get: { store.selectedTrayIDs.contains(entry.id) },
@@ -1593,7 +1625,7 @@ private struct FloatingTrayView: View {
                 .frame(minHeight: 100, maxHeight: 260)
             }
             HStack(spacing: 8) {
-                Text("\(store.trayFiles.count) items").font(.caption).foregroundStyle(.secondary)
+                Text(store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
                 Menu {
@@ -1615,7 +1647,8 @@ private struct FloatingTrayView: View {
                     .disabled(store.trayPDFCount < 2)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
-                Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
+                let visibleIDs = Set(store.visibleTrayFiles.map(\.id))
+                Button(visibleIDs.isSubset(of: store.selectedTrayIDs) ? "Deselect Visible" : "Select Visible") { store.toggleSelection(of: store.visibleTrayFiles) }.disabled(visibleIDs.isEmpty)
             }.font(.system(size: 10))
             Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
