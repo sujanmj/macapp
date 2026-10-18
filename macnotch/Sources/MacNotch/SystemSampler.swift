@@ -1,7 +1,31 @@
 import AppKit
 import Darwin
 import Foundation
+import IOKit.ps
 import MachO
+
+struct MacBatteryStatus: Equatable {
+    let percent: Int
+    let isCharging: Bool
+    let minutesRemaining: Int?
+
+    var displayDetail: String {
+        if isCharging { return "Charging" }
+        guard let minutesRemaining else { return "On battery" }
+        let hours = minutesRemaining / 60
+        let minutes = minutesRemaining % 60
+        if hours > 0 { return "About \(hours)h \(minutes)m remaining" }
+        return "About \(minutes)m remaining"
+    }
+
+    static func make(currentCapacity: Int?, maximumCapacity: Int?, isCharging: Bool, minutesRemaining: Int?) -> MacBatteryStatus? {
+        guard let currentCapacity, let maximumCapacity, maximumCapacity > 0, currentCapacity >= 0 else { return nil }
+        let boundedCapacity = min(currentCapacity, maximumCapacity)
+        let percent = Int((Double(boundedCapacity) / Double(maximumCapacity) * 100).rounded())
+        let remaining = minutesRemaining.flatMap { (0..<10_080).contains($0) ? $0 : nil }
+        return MacBatteryStatus(percent: min(100, max(0, percent)), isCharging: isCharging, minutesRemaining: remaining)
+    }
+}
 
 struct MacMetrics {
     var cpuPercent: Double = 0
@@ -13,6 +37,7 @@ struct MacMetrics {
     var topProcessBytes: UInt64?
     var diskFree: UInt64 = 0
     var diskTotal: UInt64 = 0
+    var battery: MacBatteryStatus?
     var sampledAt = Date()
 }
 
@@ -48,8 +73,26 @@ final class SystemSampler {
             metrics.diskFree = (values[.systemFreeSize] as? NSNumber)?.uint64Value ?? 0
             metrics.diskTotal = (values[.systemSize] as? NSNumber)?.uint64Value ?? 0
         }
+        metrics.battery = sampleBattery()
         metrics.sampledAt = Date()
         return metrics
+    }
+
+    private func sampleBattery() -> MacBatteryStatus? {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return nil }
+        for source in sources {
+            guard let unmanaged = IOPSGetPowerSourceDescription(info, source),
+                  let details = unmanaged.takeUnretainedValue() as? [String: Any],
+                  details[kIOPSTypeKey as String] as? String == kIOPSInternalBatteryType as String else { continue }
+            let current = (details[kIOPSCurrentCapacityKey as String] as? NSNumber)?.intValue
+            let maximum = (details[kIOPSMaxCapacityKey as String] as? NSNumber)?.intValue
+            let charging = (details[kIOPSIsChargingKey as String] as? NSNumber)?.boolValue ?? false
+            let minutes = (details[kIOPSTimeToEmptyKey as String] as? NSNumber)?.intValue
+            return MacBatteryStatus.make(currentCapacity: current, maximumCapacity: maximum,
+                                         isCharging: charging, minutesRemaining: minutes)
+        }
+        return nil
     }
 
     private func sampleCPU() -> Double {

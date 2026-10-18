@@ -979,6 +979,16 @@ struct NotchView: View {
                 }.font(.system(size: 12, weight: .medium, design: .rounded)).frame(maxWidth: .infinity, minHeight: 78, alignment: .leading).padding(12).modifier(GlassCard(tint: .cyan))
                 metricCard("Disk remaining", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.diskFree), countStyle: .file), progress: 1 - (Double(store.metrics.diskFree) / Double(max(1, store.metrics.diskTotal))), symbol: "internaldrive", tint: .mint)
             }
+            if let battery = store.metrics.battery {
+                HStack(spacing: 9) {
+                    Image(systemName: battery.isCharging ? "battery.100percent.bolt" : "battery.100percent").foregroundStyle(.green)
+                    Text("Battery").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                    Text("\(battery.percent)%").font(.system(size: 11, weight: .semibold, design: .rounded))
+                    ProgressView(value: Double(battery.percent), total: 100).tint(.green).frame(maxWidth: 90)
+                    Text(battery.displayDetail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 11).frame(height: 34).modifier(GlassCard(tint: .green))
+            }
             HStack(spacing: 8) {
                 Image(systemName: "memorychip.fill").foregroundStyle(.purple)
                 Text("Top RAM app").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
@@ -1251,6 +1261,16 @@ private struct FloatingStatsView: View {
                 Text(metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
                     .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
             }.padding(.horizontal, 9).frame(height: 29).modifier(GlassCard(tint: .purple))
+            if let battery = metrics.battery {
+                HStack(spacing: 7) {
+                    Image(systemName: battery.isCharging ? "battery.100percent.bolt" : "battery.100percent").foregroundStyle(.green)
+                    Text("Battery").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    Text("\(battery.percent)%").font(.system(size: 10, weight: .semibold, design: .rounded))
+                    ProgressView(value: Double(battery.percent), total: 100).tint(.green).frame(maxWidth: 75)
+                    Text(battery.displayDetail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 9).frame(height: 27).modifier(GlassCard(tint: .green))
+            }
         }
         .padding(12).frame(minWidth: 330, minHeight: 190)
         .background(NotchGlass())
