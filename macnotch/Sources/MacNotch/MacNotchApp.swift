@@ -84,6 +84,7 @@ final class NotchStore: ObservableObject {
     @Published var sessionTokens = 0
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
     @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
+    @Published var selectedTrayIDs = Set<UUID>()
     @Published var metrics = MacMetrics()
     @Published var trayDropTargeted = false
     @Published var recorder = ScreenRecorderController()
@@ -197,14 +198,27 @@ final class NotchStore: ObservableObject {
     }
     func removeTrayEntry(_ entry: TrayEntry) {
         trayFiles.removeAll { $0.id == entry.id }
+        selectedTrayIDs.remove(entry.id)
         persistTray()
     }
-    func clearTray() { trayFiles.removeAll(); persistTray() }
+    func clearTray() { trayFiles.removeAll(); selectedTrayIDs.removeAll(); persistTray() }
     private func persistTray() {
         if let data = try? JSONEncoder().encode(trayFiles) { UserDefaults.standard.set(data, forKey: "macNotchTrayFiles") }
     }
     func openTrayEntry(_ entry: TrayEntry) { NSWorkspace.shared.open(entry.url) }
     func revealTrayEntry(_ entry: TrayEntry) { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }
+    func selectAllTrayFiles() {
+        if !trayFiles.isEmpty && selectedTrayIDs.count == trayFiles.count { selectedTrayIDs.removeAll() }
+        else { selectedTrayIDs = Set(trayFiles.map(\.id)) }
+    }
+    func copySelectedTrayFiles() {
+        let urls = trayFiles.filter { selectedTrayIDs.contains($0.id) && FileManager.default.fileExists(atPath: $0.path) }.map { $0.url as NSURL }
+        guard !urls.isEmpty else { message = "Select existing files in the tray first."; return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        guard pasteboard.writeObjects(urls) else { message = "Could not copy these file references."; return }
+        message = "Copied \(urls.count) file reference\(urls.count == 1 ? "" : "s"). Paste them into Finder or another app."
+    }
     func zipTray() {
         let urls = trayFiles.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
         guard !urls.isEmpty else { message = "Add existing files to the tray before creating an archive."; return }
@@ -655,6 +669,13 @@ struct NotchView: View {
                     LazyVStack(spacing: 5) {
                         ForEach(store.trayFiles) { entry in
                             HStack(spacing: 10) {
+                                Toggle("Select \(entry.name)", isOn: Binding(
+                                    get: { store.selectedTrayIDs.contains(entry.id) },
+                                    set: { selected in
+                                        if selected { store.selectedTrayIDs.insert(entry.id) }
+                                        else { store.selectedTrayIDs.remove(entry.id) }
+                                    }
+                                )).labelsHidden().toggleStyle(.checkbox)
                                 Image(systemName: entry.isDirectory ? "folder.fill" : "doc.fill")
                                     .font(.system(size: 16)).foregroundStyle(store.highlightColor).frame(width: 24)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -667,6 +688,8 @@ struct NotchView: View {
                                     .help("Open file")
                                 Button { store.revealTrayEntry(entry) } label: { Image(systemName: "magnifyingglass") }
                                     .help("Show in Finder")
+                                ShareLink(item: entry.url) { Image(systemName: "square.and.arrow.up") }
+                                    .help("Share file")
                                 Button { store.removeTrayEntry(entry) } label: { Image(systemName: "xmark.circle.fill") }
                                     .help("Remove from tray")
                             }
@@ -674,6 +697,15 @@ struct NotchView: View {
                             .padding(.horizontal, 10).padding(.vertical, 7)
                             .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
                             .draggable(entry.url)
+                            .contextMenu {
+                                Button("Copy Path") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(entry.path, forType: .string)
+                                    store.message = "Copied file path."
+                                }
+                                Button("Show in Finder") { store.revealTrayEntry(entry) }
+                                Button("Remove from Tray", role: .destructive) { store.removeTrayEntry(entry) }
+                            }
                         }
                     }
                 }.frame(height: 155)
@@ -682,10 +714,12 @@ struct NotchView: View {
                 Text("\(store.trayFiles.count) item\(store.trayFiles.count == 1 ? "" : "s")")
                     .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 Spacer()
-                Button("Create ZIP on Desktop") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
+                Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
+                Button("Create ZIP") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
                 Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
             }.font(.system(size: 10))
-            Text("ZIP creation reads the selected local paths and writes a new archive to your Desktop.").font(.caption2).foregroundStyle(.secondary)
+            Text("Select files and copy their references to paste them into Finder or another app. Sharing, opening, and ZIP creation leave the originals in place.").font(.caption2).foregroundStyle(.secondary)
         }
     }
     private var widgets: some View {
