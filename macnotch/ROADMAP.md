@@ -59,7 +59,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | System | LiquidMouse | Planned |
 | System | Thaw menu-bar management | Planned |
 | System | Mechey keyboard sounds | Planned |
-| System | System Stats | Partial — CPU/RAM trends, top process, disk, network, and battery status in the notch and floating monitor; GPU and configurable widgets needed |
+| System | System Stats | Partial — configurable CPU/RAM trends, top process, disk, network, and battery status in the floating monitor; GPU readings remain |
 | System | Emoji Picker | Planned |
 | System | Lid Fold | Planned |
 | System | Cleaner | Planned |

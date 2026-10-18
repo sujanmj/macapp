@@ -98,6 +98,7 @@ final class NotchStore: ObservableObject {
     @Published var metrics = MacMetrics()
     @Published var metricHistory: [SystemMetricPoint] = []
     private var metricHistoryStore = SystemMetricHistory()
+    @Published var visibleMonitorWidgets = SystemMonitorWidget.restoring(UserDefaults.standard.stringArray(forKey: "macNotchVisibleMonitorWidgets"))
     @Published var trayDropTargeted = false
     var showFloatingTray: (() -> Void)?
     var showFloatingPlayer: (() -> Void)?
@@ -136,6 +137,11 @@ final class NotchStore: ObservableObject {
     func setShakeToRevealShelf(_ enabled: Bool) {
         shakeToRevealShelf = enabled
         UserDefaults.standard.set(enabled, forKey: "macNotchShakeToRevealShelf")
+    }
+    func setMonitorWidget(_ widget: SystemMonitorWidget, visible: Bool) {
+        if visible { visibleMonitorWidgets.insert(widget) }
+        else { visibleMonitorWidgets.remove(widget) }
+        UserDefaults.standard.set(SystemMonitorWidget.saving(visibleMonitorWidgets), forKey: "macNotchVisibleMonitorWidgets")
     }
     func showHardware(_ change: HardwareChange) {
         guard hardwareEnabled else { return }
@@ -1245,40 +1251,62 @@ private struct FloatingStatsView: View {
                 Spacer()
                 Text(metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
             }
-            HStack(spacing: 8) {
-                statsTile("CPU", value: String(format: "%.0f%%", metrics.cpuPercent), fraction: metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
-                statsTile("RAM", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryTotal), countStyle: .memory))", fraction: memoryFraction, symbol: "memorychip", tint: .purple)
+            let visible = store.visibleMonitorWidgets
+            if visible.isEmpty {
+                Label("All cards are hidden. Choose cards in Settings.", systemImage: "slider.horizontal.3")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 70)
             }
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Label("Network", systemImage: "wifi").font(.system(size: 9, weight: .medium)).foregroundStyle(.cyan)
-                    HStack(spacing: 10) {
-                        Label("↓ \(speed(metrics.downloadBytesPerSecond))", systemImage: "arrow.down")
-                        Label("↑ \(speed(metrics.uploadBytesPerSecond))", systemImage: "arrow.up")
-                    }.font(.system(size: 10, weight: .medium, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
-                }.frame(maxWidth: .infinity, minHeight: 55, alignment: .leading).padding(9).modifier(GlassCard(tint: .cyan))
-                statsTile("Disk free", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.diskFree), countStyle: .file), fraction: diskFraction, symbol: "internaldrive", tint: .mint)
+            if visible.contains(.cpu) || visible.contains(.memory) {
+                HStack(spacing: 8) {
+                    if visible.contains(.cpu) {
+                        statsTile("CPU", value: String(format: "%.0f%%", metrics.cpuPercent), fraction: metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
+                    }
+                    if visible.contains(.memory) {
+                        statsTile("RAM", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryTotal), countStyle: .memory))", fraction: memoryFraction, symbol: "memorychip", tint: .purple)
+                    }
+                }
             }
-            HStack(spacing: 6) {
-                Image(systemName: "memorychip.fill").foregroundStyle(.purple)
-                Text("Top RAM").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
-                Text(metrics.topProcess ?? "Sampling…").font(.system(size: 10, weight: .semibold)).lineLimit(1)
-                Spacer(minLength: 2)
-                Text(metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
-            }.padding(.horizontal, 9).frame(height: 29).modifier(GlassCard(tint: .purple))
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 12) {
-                    Text("Last minute").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
-                    Text("CPU").foregroundStyle(.cyan)
-                    Text("RAM").foregroundStyle(.purple)
-                    Spacer()
-                }.font(.system(size: 8, weight: .semibold))
-                MetricTrendGraph(points: store.metricHistory)
-                    .frame(height: 32)
-                    .accessibilityLabel("CPU and memory usage history over the last minute")
-            }.padding(.horizontal, 9).padding(.vertical, 6).modifier(GlassCard(tint: .cyan))
-            if let battery = metrics.battery {
+            if visible.contains(.network) || visible.contains(.disk) {
+                HStack(spacing: 8) {
+                    if visible.contains(.network) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label("Network", systemImage: "wifi").font(.system(size: 9, weight: .medium)).foregroundStyle(.cyan)
+                            HStack(spacing: 10) {
+                                Label("↓ \(speed(metrics.downloadBytesPerSecond))", systemImage: "arrow.down")
+                                Label("↑ \(speed(metrics.uploadBytesPerSecond))", systemImage: "arrow.up")
+                            }.font(.system(size: 10, weight: .medium, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+                        }.frame(maxWidth: .infinity, minHeight: 55, alignment: .leading).padding(9).modifier(GlassCard(tint: .cyan))
+                    }
+                    if visible.contains(.disk) {
+                        statsTile("Disk free", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.diskFree), countStyle: .file), fraction: diskFraction, symbol: "internaldrive", tint: .mint)
+                    }
+                }
+            }
+            if visible.contains(.topProcess) {
+                HStack(spacing: 6) {
+                    Image(systemName: "memorychip.fill").foregroundStyle(.purple)
+                    Text("Top RAM").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    Text(metrics.topProcess ?? "Sampling…").font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 2)
+                    Text(metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
+                }.padding(.horizontal, 9).frame(height: 29).modifier(GlassCard(tint: .purple))
+            }
+            if visible.contains(.trends) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 12) {
+                        Text("Last minute").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                        Text("CPU").foregroundStyle(.cyan)
+                        Text("RAM").foregroundStyle(.purple)
+                        Spacer()
+                    }.font(.system(size: 8, weight: .semibold))
+                    MetricTrendGraph(points: store.metricHistory)
+                        .frame(height: 32)
+                        .accessibilityLabel("CPU and memory usage history over the last minute")
+                }.padding(.horizontal, 9).padding(.vertical, 6).modifier(GlassCard(tint: .cyan))
+            }
+            if visible.contains(.battery), let battery = metrics.battery {
                 HStack(spacing: 7) {
                     Image(systemName: battery.isCharging ? "battery.100percent.bolt" : "battery.100percent").foregroundStyle(.green)
                     Text("Battery").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
@@ -1848,6 +1876,16 @@ struct NotchSettings: View {
                 Toggle("Hide MacNotch in full-screen apps", isOn: Binding(get: { store.hideInFullScreen }, set: { store.setHideInFullScreen($0) }))
                 Toggle("Reveal file shelf when shaking a drag", isOn: Binding(get: { store.shakeToRevealShelf }, set: { store.setShakeToRevealShelf($0) }))
                 Text("While carrying files, quickly reverse direction twice to bring the shelf beside the pointer. Drag tracking uses pointer movement only; files are read only when dropped.").font(.caption)
+                Group {
+                    Text("Floating System Monitor").font(.headline)
+                    Text("Choose which cards stay in the compact floating monitor.").font(.caption).foregroundStyle(.secondary)
+                    ForEach(SystemMonitorWidget.allCases) { widget in
+                        Toggle(widget.title, isOn: Binding(
+                            get: { store.visibleMonitorWidgets.contains(widget) },
+                            set: { store.setMonitorWidget(widget, visible: $0) }
+                        ))
+                    }
+                }
                 Toggle("Capture system audio in screen recordings", isOn: Binding(get: { store.includeSystemAudio }, set: { value in store.includeSystemAudio = value; UserDefaults.standard.set(value, forKey: "macNotchRecordSystemAudio") }))
                 if #available(macOS 15.0, *) {
                     Toggle("Capture microphone in screen recordings", isOn: Binding(get: { store.includeMicrophone }, set: { value in store.includeMicrophone = value; UserDefaults.standard.set(value, forKey: "macNotchRecordMicrophone") }))

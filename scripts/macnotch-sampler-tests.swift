@@ -29,6 +29,10 @@ struct MacNotchSamplerTests {
         precondition(history.points.last?.memoryPercent == 68, "Trend history should preserve bounded memory percentages")
         history.append(cpuPercent: .nan, memoryPercent: .infinity, limit: 30)
         precondition(history.points.last?.cpuPercent == 0 && history.points.last?.memoryPercent == 0, "Invalid graph values should be sanitized")
+        precondition(SystemMonitorWidget.restoring(nil) == Set(SystemMonitorWidget.allCases), "A fresh install should show every monitor card")
+        let restored = SystemMonitorWidget.restoring(["cpu", "disk", "cpu", "future-card"])
+        precondition(restored == [.cpu, .disk], "Saved monitor settings should ignore invalid and duplicate cards")
+        precondition(SystemMonitorWidget.saving(restored) == ["cpu", "disk"], "Monitor settings should save in stable display order")
         print("MacNotch sampler checks passed")
     }
 }

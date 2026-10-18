@@ -46,6 +46,32 @@ struct SystemMetricHistory {
     }
 }
 
+enum SystemMonitorWidget: String, CaseIterable, Identifiable {
+    case cpu, memory, network, disk, topProcess, battery, trends
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .cpu: "CPU usage"
+        case .memory: "Memory usage"
+        case .network: "Network speeds"
+        case .disk: "Free disk space"
+        case .topProcess: "Top RAM app"
+        case .battery: "Battery status"
+        case .trends: "CPU/RAM history graph"
+        }
+    }
+
+    static func restoring(_ rawValues: [String]?) -> Set<SystemMonitorWidget> {
+        guard let rawValues else { return Set(allCases) }
+        return Set(rawValues.compactMap(SystemMonitorWidget.init(rawValue:)))
+    }
+
+    static func saving(_ selection: Set<SystemMonitorWidget>) -> [String] {
+        allCases.filter(selection.contains).map(\.rawValue)
+    }
+}
+
 struct MacMetrics {
     var cpuPercent: Double = 0
     var memoryUsed: UInt64 = 0
