@@ -1,4 +1,4 @@
-# MacNotch v0.46
+# MacNotch v0.47
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -124,6 +124,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.47
+
+Expanded Focus into a Pomodoro cycle: a 25-minute focus session automatically starts a 5-minute break, with a 15-minute break after every fourth completed focus. Break completion returns to a ready state, and Live Activities show the current phase and countdown.
 
 ## v0.46
 

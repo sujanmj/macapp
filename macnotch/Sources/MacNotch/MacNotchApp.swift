@@ -149,6 +149,12 @@ final class NotchStore: ObservableObject {
     @Published var model = "gemini-flash-latest"
     @Published var focusEnd: Date?
     @Published var remaining = 0
+    @Published var focusPhase: FocusPhase = .focus
+    private var focusCycle = PomodoroCycle()
+    var focusCyclePosition: Int {
+        let completed = focusCycle.completedFocuses
+        return completed > 0 && completed.isMultiple(of: 4) ? 4 : completed % 4
+    }
     @Published var pulse: PulseGlance?
     @Published var hardwareHUD: HardwareChange?
     @Published var hardwareEnabled = true
@@ -300,7 +306,19 @@ final class NotchStore: ObservableObject {
         if musicEnabled { refreshMusic() }
         if let focusEnd {
             remaining = max(0, Int(ceil(focusEnd.timeIntervalSinceNow)))
-            if remaining == 0 { self.focusEnd = nil; NSSound.beep(); message = "Focus session complete." }
+            if remaining == 0 {
+                let nextPhase = focusCycle.advance(after: focusPhase)
+                focusPhase = nextPhase
+                NSSound.beep()
+                if nextPhase == .focus {
+                    self.focusEnd = nil
+                    message = "Break complete. Start your next focus session when ready."
+                } else {
+                    self.focusEnd = Date().addingTimeInterval(TimeInterval(nextPhase.duration))
+                    remaining = nextPhase.duration
+                    message = "Focus complete. Your \(nextPhase.title.lowercased()) has started."
+                }
+            }
         }
     }
     func addTrayURLs(_ urls: [URL]) {
@@ -719,7 +737,13 @@ final class NotchStore: ObservableObject {
             pulse = snapshot; message = Date().timeIntervalSince(snapshot.date) > 120 ? "Older MacPulse snapshot. Open MacPulse and refresh this glance." : "MacPulse snapshot loaded. Sample time is shown."
         } else { message = "Open MacPulse v1.1 to generate a local snapshot first." }
     }
-    func startFocus() { focusEnd = Date().addingTimeInterval(25 * 60); remaining = 25 * 60 }
+    func startFocus() { startFocusPhase(.focus) }
+    func startShortBreak() { startFocusPhase(.shortBreak) }
+    private func startFocusPhase(_ phase: FocusPhase) {
+        focusPhase = phase
+        remaining = phase.duration
+        focusEnd = Date().addingTimeInterval(TimeInterval(phase.duration))
+    }
     func stopFocus() { focusEnd = nil; remaining = 0 }
     func openSiri() {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Siri") {
@@ -1287,9 +1311,15 @@ struct NotchView: View {
     }
     private var focus: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(store.focusEnd == nil ? "A quiet space for one task." : "Focus time remaining").font(.headline)
+            Text(store.focusEnd == nil ? "Ready for your next session." : store.focusPhase.title + " time remaining").font(.headline)
             Text(String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60)).font(.system(size: 36, weight: .semibold, design: .rounded)).monospacedDigit()
-            HStack { Button("Start 25 Minutes") { store.startFocus() }; Button("Stop") { store.stopFocus() } }
+            HStack {
+                Button("Start Focus · 25 min") { store.startFocus() }
+                Button("Start Break · 5 min") { store.startShortBreak() }
+                Button("Stop") { store.stopFocus() }
+            }
+            Text("Cycle \(store.focusCyclePosition)/4 · every fourth focus switches to a 15-minute break")
+                .font(.caption2).foregroundStyle(.secondary)
             HStack {
                 Button("MacPulse Glance") { store.refreshPulse() }
                 Button("Review High-RAM Apps") {
@@ -1354,7 +1384,7 @@ private struct LiveActivitiesView: View {
             ScrollView {
                 VStack(spacing: 7) {
                     row("Music", detail: store.playing ? "\(store.track) · \(store.artist)" : (store.musicEnabled ? "Player connected · nothing playing" : "Not connected"), symbol: "music.note", tint: .green, active: store.playing)
-                    row("Focus", detail: store.focusEnd.map { _ in "\(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
+                    row("Focus", detail: store.focusEnd.map { _ in "\(store.focusPhase.title) · \(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
                     row("Next event", detail: calendarDetail, symbol: "calendar", tint: .cyan, active: calendar.hasLoaded && calendar.events.contains { $0.end > Date() })
                     row("Next reminder", detail: reminderDetail, symbol: "checklist", tint: .yellow, active: tasks.hasLoaded && !tasks.reminders.isEmpty)
                     row("File Tray", detail: store.trayFiles.isEmpty ? "Ready for files" : "\(store.trayFiles.count) file\(store.trayFiles.count == 1 ? "" : "s") waiting in your tray", symbol: "tray.full.fill", tint: store.highlightColor, active: !store.trayFiles.isEmpty)

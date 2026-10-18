@@ -50,3 +50,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/MediaPlaylist.swift scripts/macnotch-media-playlist-tests.swift \
   -framework AppKit -o "$scratch/macnotch-media-playlist-check"
 "$scratch/macnotch-media-playlist-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/PomodoroCycle.swift scripts/macnotch-pomodoro-tests.swift \
+  -o "$scratch/macnotch-pomodoro-check"
+"$scratch/macnotch-pomodoro-check"
