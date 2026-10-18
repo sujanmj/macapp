@@ -898,6 +898,7 @@ struct NotchView: View {
             VStack(spacing: 8) {
                 dashboardAction("Ask", detail: "Gemini", symbol: "sparkles", color: store.highlightColor) { tab = "Gemini"; store.expandedHeight = 340; store.resize?() }
                 dashboardAction("Notes", detail: "Catch a thought", symbol: "note.text", color: store.highlightColor) { tab = "Notes"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Emoji", detail: "⌃⌥E", symbol: "face.smiling", color: store.highlightColor) { NSApp.orderFrontCharacterPalette(nil) }
             }.frame(width: 130)
             VStack(alignment: .leading, spacing: 12) {
                 Text(Date(), format: .dateTime.weekday(.wide)).font(.system(size: 10)).foregroundStyle(.gray)
@@ -2265,6 +2266,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     let floatingTrayShortcut = GlobalShortcut()
     let floatingPlayerShortcut = GlobalShortcut()
     let floatingStatsShortcut = GlobalShortcut()
+    let emojiShortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
@@ -2324,6 +2326,10 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingStatsShortcut.action = { [weak self] in self?.showFloatingStats() }
         if !floatingStatsShortcut.register(key: UInt32(kVK_ANSI_W), modifiers: UInt32(controlKey | optionKey)) {
             store.message = "System monitor shortcut unavailable; use the menu bar or Widgets tab."
+        }
+        emojiShortcut.action = { NSApp.orderFrontCharacterPalette(nil) }
+        if !emojiShortcut.register(key: UInt32(kVK_ANSI_E), modifiers: UInt32(controlKey | optionKey)) {
+            store.message = "Emoji shortcut unavailable; use the Home panel."
         }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in

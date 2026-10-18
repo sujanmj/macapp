@@ -60,7 +60,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | System | Thaw menu-bar management | Planned |
 | System | Mechey keyboard sounds | Planned |
 | System | System Stats | Partial — configurable CPU/RAM trends, top process, disk, network, and battery status in the floating monitor; GPU readings remain |
-| System | Emoji Picker | Planned |
+| System | Emoji Picker | Partial — opens Apple's native Emoji & Symbols palette from Home or Control–Option–E; a built-in recents/favorites picker remains |
 | System | Lid Fold | Planned |
 | System | Cleaner | Planned |
 | System | Window Switcher | Planned |
