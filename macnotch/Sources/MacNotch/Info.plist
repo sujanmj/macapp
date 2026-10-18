@@ -30,6 +30,8 @@
 	<string>MacNotch transcribes a recording only when you request it. Transcription requires on-device speech recognition and is not uploaded.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>MacNotch reads your upcoming events only when you choose Load Events in the Calendar tab. Event details stay on this Mac.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>MacNotch loads upcoming reminders only when you choose Load Reminders. It marks a reminder complete only when you press its Complete button.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

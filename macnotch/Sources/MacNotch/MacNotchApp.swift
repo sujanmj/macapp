@@ -998,52 +998,100 @@ private struct FloatingTrayView: View {
 
 private struct CalendarEventsView: View {
     @StateObject private var controller = CalendarEventsController()
+    @StateObject private var tasks = CalendarTasksController()
+    @State private var section = "Events"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Calendar").font(.headline)
-                    Text("Upcoming events · next 7 days").font(.caption).foregroundStyle(.secondary)
+                    Text("Calendar & Tasks").font(.headline)
+                    Text(section == "Events" ? "Upcoming events · next 7 days" : "Incomplete reminders · next 30 days")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button {
-                    Task { await controller.loadUpcomingEvents() }
-                } label: {
-                    Label(controller.busy ? "Loading…" : (controller.hasLoaded ? "Refresh" : "Load Events"), systemImage: "calendar.badge.clock")
-                }.disabled(controller.busy).buttonStyle(.borderedProminent).tint(.cyan)
-            }
-            if !controller.events.isEmpty {
-                ScrollView {
-                    LazyVStack(spacing: 6) {
-                        ForEach(controller.events) { event in
-                            HStack(spacing: 10) {
-                                VStack(spacing: 2) {
-                                    Text(event.start.formatted(.dateTime.day())).font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    Text(event.start.formatted(.dateTime.month(.abbreviated))).font(.system(size: 8, weight: .medium)).foregroundStyle(.cyan)
-                                }.frame(width: 34)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(event.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
-                                    HStack(spacing: 5) {
-                                        Text(event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened))
-                                        Text("·")
-                                        Text(event.calendarTitle).lineLimit(1)
-                                    }.font(.system(size: 9)).foregroundStyle(.secondary)
-                                }
-                                Spacer(minLength: 0)
-                            }.padding(8).background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
-                        }
+                    Task {
+                        if section == "Events" { await controller.loadUpcomingEvents() }
+                        else { await tasks.loadUpcomingReminders() }
                     }
-                }.frame(maxHeight: 220)
-            } else if controller.hasLoaded {
-                ContentUnavailableView("No upcoming events", systemImage: "calendar", description: Text("Nothing is scheduled in the next seven days."))
-                    .frame(height: 110)
-            } else {
-                ContentUnavailableView("Your calendar, at a glance", systemImage: "calendar", description: Text("Load events when you’re ready. MacNotch asks for Calendar access only after you press the button."))
-                    .frame(height: 120)
+                } label: {
+                    let busy = section == "Events" ? controller.busy : tasks.busy
+                    let loaded = section == "Events" ? controller.hasLoaded : tasks.hasLoaded
+                    Label(busy ? "Loading…" : (loaded ? "Refresh" : (section == "Events" ? "Load Events" : "Load Reminders")),
+                          systemImage: section == "Events" ? "calendar.badge.clock" : "checklist")
+                }.disabled(section == "Events" ? controller.busy : tasks.busy).buttonStyle(.borderedProminent).tint(.cyan)
             }
-            Text(controller.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Picker("Calendar section", selection: $section) {
+                Text("Events").tag("Events")
+                Text("Reminders").tag("Reminders")
+            }.pickerStyle(.segmented).frame(maxWidth: 230)
+            section == "Events" ? AnyView(eventList) : AnyView(reminderList)
+            Text(section == "Events" ? controller.message : tasks.message)
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button("Privacy Settings") {
+                openPrivacy(section == "Events" ? "Privacy_Calendars" : "Privacy_Reminders")
+            }.font(.system(size: 10))
         }.padding(14).modifier(GlassCard(tint: .cyan))
+    }
+
+    @ViewBuilder private var eventList: some View {
+        if !controller.events.isEmpty {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(controller.events) { event in
+                        HStack(spacing: 10) {
+                            VStack(spacing: 2) {
+                                Text(event.start.formatted(.dateTime.day())).font(.system(size: 15, weight: .semibold, design: .rounded))
+                                Text(event.start.formatted(.dateTime.month(.abbreviated))).font(.system(size: 8, weight: .medium)).foregroundStyle(.cyan)
+                            }.frame(width: 34)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(event.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                HStack(spacing: 5) {
+                                    Text(event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened))
+                                    Text("·")
+                                    Text(event.calendarTitle).lineLimit(1)
+                                }.font(.system(size: 9)).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }.padding(8).background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }.frame(maxHeight: 220)
+        } else if controller.hasLoaded {
+            ContentUnavailableView("No upcoming events", systemImage: "calendar", description: Text("Nothing is scheduled in the next seven days."))
+                .frame(height: 110)
+        } else {
+            ContentUnavailableView("Your calendar, at a glance", systemImage: "calendar", description: Text("Load events when you’re ready. Calendar access is requested only when you press the button."))
+                .frame(height: 120)
+        }
+    }
+
+    @ViewBuilder private var reminderList: some View {
+        if !tasks.reminders.isEmpty {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(tasks.reminders) { reminder in
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(reminder.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                Text([reminder.dueDate?.formatted(date: .abbreviated, time: .omitted), reminder.listTitle].compactMap { $0 }.joined(separator: " · "))
+                                    .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: 4)
+                            Button { tasks.complete(reminder) } label: { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
+                                .buttonStyle(.plain).help("Mark reminder complete")
+                        }.padding(8).background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }.frame(maxHeight: 220)
+        } else if tasks.hasLoaded {
+            ContentUnavailableView("No incomplete reminders", systemImage: "checklist", description: Text("Nothing is due in the next 30 days."))
+                .frame(height: 110)
+        } else {
+            ContentUnavailableView("Your tasks, at a glance", systemImage: "checklist", description: Text("Load reminders when you’re ready. Reminder access is requested only when you press the button."))
+                .frame(height: 120)
+        }
     }
 }
 
