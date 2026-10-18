@@ -1211,7 +1211,7 @@ struct ScreenRecordingControls: View {
                     }.labelsHidden().frame(maxWidth: .infinity)
                     Button { Task { await recorder.refreshWindows() } } label: {
                         Image(systemName: "arrow.clockwise")
-                    }.help("Refresh visible app windows")
+                    }.help("Load or refresh visible app windows; macOS may ask for Screen Recording access")
                 }
                 Toggle("Include system audio", isOn: $includeSystemAudio)
                 if #available(macOS 15.0, *) { Toggle("Include microphone", isOn: $includeMicrophone) }
@@ -1253,7 +1253,6 @@ struct ScreenRecordingControls: View {
             Text("Record the primary display or a single visible app window. MacNotch is excluded from display captures. Screen recording and optional microphone capture require macOS permissions; videos stay on this Mac.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(14).modifier(GlassCard(tint: .red))
-            .task { await recorder.refreshWindows() }
     }
 }
 
