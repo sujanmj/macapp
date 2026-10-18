@@ -18,3 +18,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/SystemSampler.swift scripts/macnotch-sampler-tests.swift \
   -o "$scratch/macnotch-sampler-check"
 "$scratch/macnotch-sampler-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/LocalTextRecognizer.swift scripts/macnotch-capture-tests.swift \
+  -o "$scratch/macnotch-capture-check"
+"$scratch/macnotch-capture-check"
