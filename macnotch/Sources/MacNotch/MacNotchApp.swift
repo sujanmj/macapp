@@ -4,6 +4,7 @@ import AppKit
 import Carbon
 import UniformTypeIdentifiers
 import QuickLookThumbnailing
+import QuickLookUI
 
 struct PulseGlance: Decodable {
     let schema: Int
@@ -33,6 +34,26 @@ struct TrayEntry: Codable, Identifiable, Hashable {
         self.id = UUID()
         self.path = url.standardizedFileURL.path
         self.addedAt = Date()
+    }
+}
+
+private struct TrayPreviewItem: Identifiable {
+    let url: URL
+    var id: String { url.path }
+}
+
+private struct QuickLookPreviewView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> QLPreviewView {
+        let preview = QLPreviewView(frame: .zero, style: .normal)!
+        preview.previewItem = url as QLPreviewItem
+        return preview
+    }
+
+    func updateNSView(_ nsView: QLPreviewView, context: Context) {
+        nsView.previewItem = url as QLPreviewItem
+        nsView.refreshPreviewItem()
     }
 }
 
@@ -707,6 +728,7 @@ struct NotchView: View {
     @ObservedObject var store: NotchStore
     @State private var tab = "Home"
     @State private var scrubbing: Double?
+    @State private var previewItem: TrayPreviewItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(spacing: 0) {
@@ -773,6 +795,18 @@ struct NotchView: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.hardwareHUD != nil)
         .buttonStyle(NotchControlStyle(tint: store.highlightColor))
         .onDrop(of: [UTType.fileURL], isTargeted: $store.trayDropTargeted, perform: acceptDroppedFiles)
+        .sheet(item: $previewItem) { item in
+            VStack(spacing: 8) {
+                HStack {
+                    Text(item.url.lastPathComponent).font(.headline).lineLimit(1)
+                    Spacer()
+                    Button("Done") { previewItem = nil }
+                }
+                QuickLookPreviewView(url: item.url)
+            }
+            .padding(12)
+            .frame(minWidth: 520, minHeight: 420)
+        }
     }
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1043,12 +1077,15 @@ struct NotchView: View {
                             .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
                             .draggable(entry.url)
                             .contextMenu {
+                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
+                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
                                 Button("Copy Path") {
                                     NSPasteboard.general.clearContents()
                                     NSPasteboard.general.setString(entry.path, forType: .string)
                                     store.message = "Copied file path."
                                 }
                                 Button("Show in Finder") { store.revealTrayEntry(entry) }
+                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
                                 if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
                                     Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
                                 }
@@ -1563,6 +1600,7 @@ private struct MetricTrendGraph: View {
 private struct FloatingTrayView: View {
     @ObservedObject var store: NotchStore
     @State private var targeted = false
+    @State private var previewItem: TrayPreviewItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1657,6 +1695,18 @@ private struct FloatingTrayView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(targeted ? store.highlightColor : .clear, lineWidth: 2))
         .onDrop(of: [UTType.fileURL], isTargeted: $targeted, perform: acceptDroppedFiles)
+        .sheet(item: $previewItem) { item in
+            VStack(spacing: 8) {
+                HStack {
+                    Text(item.url.lastPathComponent).font(.headline).lineLimit(1)
+                    Spacer()
+                    Button("Done") { previewItem = nil }
+                }
+                QuickLookPreviewView(url: item.url)
+            }
+            .padding(12)
+            .frame(minWidth: 520, minHeight: 420)
+        }
     }
 
     private func chooseFiles() {
