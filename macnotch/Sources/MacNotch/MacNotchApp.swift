@@ -803,7 +803,6 @@ struct NotchView: View {
                 Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
                 Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
-                Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
                 Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
             }.font(.system(size: 10))
             Text("Select files and copy their references to paste them into Finder or another app. Sharing, opening, and ZIP creation leave the originals in place.").font(.caption2).foregroundStyle(.secondary)
@@ -863,7 +862,7 @@ struct NotchView: View {
                     activityRow("Frontmost app", detail: store.activeApp.isEmpty ? "Unavailable" : store.activeApp, symbol: "macwindow", tint: .cyan, active: true)
                 }
             }.frame(height: 185)
-            Text("Third-party calls, downloads, screen recordings, and system-wide activities are not yet integrated. This view only reports state MacNotch can currently observe.")
+            Text("Third-party calls, downloads, and system-wide activity feeds are not yet integrated. This view only reports state MacNotch can currently observe.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -1082,6 +1081,7 @@ private struct CalendarEventsView: View {
     @StateObject private var controller = CalendarEventsController()
     @StateObject private var tasks = CalendarTasksController()
     @State private var section = "Events"
+    @State private var showingReminderComposer = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1103,6 +1103,11 @@ private struct CalendarEventsView: View {
                     Label(busy ? "Loading…" : (loaded ? "Refresh" : (section == "Events" ? "Load Events" : "Load Reminders")),
                           systemImage: section == "Events" ? "calendar.badge.clock" : "checklist")
                 }.disabled(section == "Events" ? controller.busy : tasks.busy).buttonStyle(.borderedProminent).tint(.cyan)
+                if section == "Reminders" {
+                    Button { showingReminderComposer = true } label: { Label("New", systemImage: "plus") }
+                        .help("Create a reminder")
+                        .disabled(tasks.busy)
+                }
             }
             Picker("Calendar section", selection: $section) {
                 Text("Events").tag("Events")
@@ -1115,6 +1120,7 @@ private struct CalendarEventsView: View {
                 openPrivacy(section == "Events" ? "Privacy_Calendars" : "Privacy_Reminders")
             }.font(.system(size: 10))
         }.padding(14).modifier(GlassCard(tint: .cyan))
+            .sheet(isPresented: $showingReminderComposer) { NewReminderSheet(tasks: tasks) }
     }
 
     @ViewBuilder private var eventList: some View {
@@ -1174,6 +1180,44 @@ private struct CalendarEventsView: View {
             ContentUnavailableView("Your tasks, at a glance", systemImage: "checklist", description: Text("Load reminders when you’re ready. Reminder access is requested only when you press the button."))
                 .frame(height: 120)
         }
+    }
+}
+
+private struct NewReminderSheet: View {
+    @ObservedObject var tasks: CalendarTasksController
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var hasDueDate = false
+    @State private var dueDate = Date()
+    @State private var saving = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("New Reminder").font(.headline)
+            TextField("What do you need to remember?", text: $title).textFieldStyle(.roundedBorder)
+            Toggle("Set a due date", isOn: $hasDueDate)
+            if hasDueDate {
+                DatePicker("Due", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
+            }
+            Text("The reminder is saved to your default Reminders list. Access is requested only when you save.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(tasks.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button(saving ? "Saving…" : "Create Reminder") {
+                    saving = true
+                    Task {
+                        if await tasks.create(title: title, dueDate: hasDueDate ? dueDate : nil) { dismiss() }
+                        saving = false
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
     }
 }
 

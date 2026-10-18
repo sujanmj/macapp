@@ -137,4 +137,46 @@ final class CalendarTasksController: ObservableObject {
             message = "Could not complete reminder: \(error.localizedDescription)"
         }
     }
+
+    func create(title: String, dueDate: Date?) async -> Bool {
+        let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedTitle.isEmpty else {
+            message = "Enter a title for the reminder."
+            return false
+        }
+        guard !busy else { return false }
+        busy = true
+        defer { busy = false }
+        do {
+            let status = EKEventStore.authorizationStatus(for: .reminder)
+            if status == .notDetermined {
+                guard try await eventStore.requestFullAccessToReminders() else {
+                    message = "Reminder access was not granted. You can enable it in System Settings → Privacy & Security → Reminders."
+                    return false
+                }
+            }
+            guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else {
+                message = "Allow full reminder access in System Settings → Privacy & Security → Reminders to create tasks."
+                return false
+            }
+            guard let calendar = eventStore.defaultCalendarForNewReminders() else {
+                message = "No writable reminder list is available in the Reminders app."
+                return false
+            }
+            let reminder = EKReminder(eventStore: eventStore)
+            reminder.title = cleanedTitle
+            reminder.calendar = calendar
+            if let dueDate {
+                reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
+            }
+            try eventStore.save(reminder, commit: true)
+            message = "Created “\(cleanedTitle)” in \(calendar.title)."
+            busy = false
+            if hasLoaded { await loadUpcomingReminders() }
+            return true
+        } catch {
+            message = "Could not create reminder: \(error.localizedDescription)"
+            return false
+        }
+    }
 }

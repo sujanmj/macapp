@@ -1,4 +1,4 @@
-# MacNotch v0.22
+# MacNotch v0.23
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -15,7 +15,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
 - **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
-- **Calendar & Tasks:** explicitly load upcoming events from the next seven days or incomplete reminders due in the next month. MacNotch asks for Calendar or Reminders permission only after you press the matching load button. Marking a reminder complete is a separate explicit action; data stays local.
+- **Calendar & Tasks:** explicitly load upcoming events from the next seven days or incomplete reminders due in the next month. MacNotch asks for Calendar or Reminders permission only after you press the matching load or create button. Create a reminder in your default Reminders list with an optional due date; marking one complete is a separate explicit action. Data stays local.
 - **Notes, Siri, and Shortcuts:** notes save locally; Siri opens Apple's own interface rather than running inside MacNotch.
 - **Hardware feedback:** optional volume and brightness-key indications. macOS exposes brightness direction rather than a dependable percentage on supported Macs.
 
@@ -76,6 +76,10 @@ Added clipboard search and explicit per-item pinning. Unpinned history remains o
 ## v0.22
 
 Added recording of a selected visible application window as an alternative to the primary display. MacNotch refreshes eligible windows on demand and before recording, excludes itself, and fails safely if the chosen window closes before capture begins. System audio and optional microphone behavior remain explicit.
+
+## v0.23
+
+Added explicit reminder creation to the Reminders view, with an optional due date and save to the default writable Reminders list. Permission is requested only when saving, and the list refreshes after a successful create. Also removed a duplicate ZIP action from the tray and corrected the Live Activities disclosure.
 
 ## v0.11
 
