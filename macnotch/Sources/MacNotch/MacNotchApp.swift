@@ -1242,7 +1242,7 @@ struct NotchSettings: View {
                 Text("Volume changes show the reported level when available. Brightness keys show direction only. Hardware-key visibility depends on macOS permissions/device; Apple’s own HUD remains enabled.").font(.caption)
                 Button("Input Monitoring Settings") { openPrivacy("Privacy_ListenEvent") }
                 Divider(); LoginToggle()
-                Text("⌃⌥N expands/collapses the notch panel. Hover to expand; pin to keep it open. The panel unfolds from the top edge with smooth motion and respects Reduce Motion. The notch position follows the main screen when displays change. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
+                Text("⌃⌥N expands/collapses the notch panel; ⌃⌥F opens the floating file shelf. Hover to expand; pin to keep the notch panel open. Both controls respect the saved screen layout. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
             }.padding(20)
         }.frame(width: 480, height: 450)
     }
@@ -1252,6 +1252,7 @@ struct NotchSettings: View {
 final class NotchDelegate: NSObject, NSApplicationDelegate {
     let store = NotchStore()
     let shortcut = GlobalShortcut()
+    let floatingTrayShortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
@@ -1271,9 +1272,14 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.resize = { [weak self] in self?.position() }
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
         floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
+        _ = floatingTray?.panel.setFrameAutosaveName("MacNotchFloatingFileShelf")
         store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
         shortcut.action = { [weak self] in self?.toggle() }
         if !shortcut.register(key: UInt32(kVK_ANSI_N), modifiers: UInt32(controlKey | optionKey)) { store.message = "Shortcut unavailable; use the menu bar." }
+        floatingTrayShortcut.action = { [weak self] in self?.showFloatingTray() }
+        if !floatingTrayShortcut.register(key: UInt32(kVK_ANSI_F), modifiers: UInt32(controlKey | optionKey)) {
+            store.message = "Floating shelf shortcut unavailable; use the menu bar or File Tray."
+        }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.position() }
         }
@@ -1315,7 +1321,7 @@ struct MacNotchApp: App {
     var body: some Scene {
         MenuBarExtra("MacNotch", systemImage: "capsule.fill") {
             Button("Show / Hide Panel") { delegate.toggle() }
-            Button("Floating File Shelf") { delegate.showFloatingTray() }
+            Button("Floating File Shelf   ⌃⌥F") { delegate.showFloatingTray() }
             Button("Settings") { delegate.settings?.show() }
             Divider(); Button("Quit MacNotch") { NSApp.terminate(nil) }
         }
