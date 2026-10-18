@@ -2253,6 +2253,12 @@ private struct DisplayIslandView: View {
                 }.help(expanded ? "Collapse island" : "Expand island")
             }.buttonStyle(.plain)
             if expanded {
+                HStack(spacing: 6) {
+                    islandMetric("CPU", value: String(format: "%.0f%%", store.metrics.cpuPercent), tint: .cyan)
+                    islandMetric("MEMORY", value: "\(Int((Double(store.metrics.memoryUsed) / Double(max(1, store.metrics.memoryTotal)) * 100).rounded()))%", tint: .purple)
+                    islandMetric("UPLOAD", value: speed(store.metrics.uploadBytesPerSecond), tint: .orange)
+                    islandMetric("DOWNLOAD", value: speed(store.metrics.downloadBytesPerSecond), tint: .green)
+                }
                 Divider().overlay(.white.opacity(0.12))
                 HStack(spacing: 7) {
                     islandAction("Tray", symbol: "tray.full.fill") { store.showFloatingTray?() }
@@ -2263,7 +2269,7 @@ private struct DisplayIslandView: View {
             }
         }
         .padding(.horizontal, 11).padding(.vertical, 8)
-        .frame(width: expanded ? 320 : 220, height: expanded ? 86 : 38)
+        .frame(width: expanded ? 460 : 220, height: expanded ? 124 : 38)
         .background {
             RoundedRectangle(cornerRadius: expanded ? 20 : 18).fill(.ultraThinMaterial)
                 .overlay(RoundedRectangle(cornerRadius: expanded ? 20 : 18).fill(.black.opacity(0.78)))
@@ -2279,6 +2285,21 @@ private struct DisplayIslandView: View {
                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                 .background(.white.opacity(0.08), in: Capsule())
         }.buttonStyle(.plain)
+    }
+
+    private func islandMetric(_ title: String, value: String, tint: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(tint).frame(width: 5, height: 5)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 7, weight: .medium)).foregroundStyle(.secondary)
+                Text(value).font(.system(size: 9, weight: .semibold, design: .monospaced)).lineLimit(1)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 7).padding(.vertical, 5)
+            .background(.white.opacity(0.07), in: Capsule())
+    }
+
+    private func speed(_ bytesPerSecond: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytesPerSecond), countStyle: .memory) + "/s"
     }
 }
 
@@ -2459,7 +2480,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         positionDisplayIsland(island, on: screen, expanded: expanded)
     }
     private func positionDisplayIsland(_ island: FloatingWindow, on screen: NSScreen, expanded: Bool) {
-        let size = NSSize(width: expanded ? 320 : 220, height: expanded ? 86 : 38)
+        let size = NSSize(width: expanded ? 460 : 220, height: expanded ? 124 : 38)
         let frame = NSRect(x: screen.frame.midX - size.width / 2,
                            y: screen.frame.maxY - size.height,
                            width: size.width, height: size.height)
