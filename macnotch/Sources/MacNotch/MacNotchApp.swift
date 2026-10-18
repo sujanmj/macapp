@@ -727,6 +727,7 @@ final class NotchStore: ObservableObject {
 
 struct NotchView: View {
     @ObservedObject var store: NotchStore
+    @StateObject private var windowSnap = WindowSnapController()
     @State private var tab = "Home"
     @State private var scrubbing: Double?
     @State private var previewItem: TrayPreviewItem?
@@ -910,6 +911,18 @@ struct NotchView: View {
                     Label(store.focusEnd == nil ? "Focus · 25 min" : String(format: "%02d:%02d · Stop", store.remaining / 60, store.remaining % 60), systemImage: "timer")
                         .font(.system(size: 11)).foregroundStyle(.mint)
                 }.buttonStyle(.plain)
+                Menu {
+                    Button("Left Half") { windowSnap.snap(.leftHalf) }
+                    Button("Right Half") { windowSnap.snap(.rightHalf) }
+                    Button("Maximize") { windowSnap.snap(.maximize) }
+                    Button("Center Window") { windowSnap.snap(.center) }
+                } label: {
+                    Label("Snap Window", systemImage: "rectangle.split.2x1")
+                        .font(.system(size: 10, weight: .medium)).foregroundStyle(.cyan)
+                }.menuStyle(.borderlessButton)
+                if !windowSnap.status.isEmpty {
+                    Text(windowSnap.status).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
+                }
             }.padding(14).frame(maxWidth: .infinity, minHeight: 148, alignment: .topLeading)
                 .modifier(GlassCard(tint: .orange))
         }

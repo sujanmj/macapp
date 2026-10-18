@@ -53,7 +53,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Files | Finder Services | Partial — Finder Services menu action adds selected items to tray; contextual Quick Actions and broader provider compatibility remain |
 | Files | Temporary Cloud Sharing | Planned |
 | Files | LocalSend | Planned |
-| System | Window Snap | Planned |
+| System | Window Snap | Partial — snaps the frontmost app's focused window to left/right half, maximize, or center with Accessibility permission; multi-window layouts and per-display positioning remain |
 | System | Notifications | Planned |
 | System | Stay Awake | Planned |
 | System | LiquidMouse | Planned |
