@@ -28,7 +28,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Termi-Notch | Planned |
 | Productivity | Calendar and Tasks | Planned |
 | Productivity | Pomodoro | Partial — basic Focus timer exists |
-| Productivity | Meetings | Planned — no third-party meeting controls yet |
+| Productivity | Meetings | Partial — local screen/system/mic recording and explicit on-device transcript; third-party meeting controls still needed |
 | Productivity | Notes | Partial — local quick note only |
 | Productivity | Thunderstorm launcher | Planned |
 | Productivity | Obsidian | Planned |
@@ -70,7 +70,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 ## Release sequence
 
 1. **Core shelf and widgets:** harden drop targets and file lifetimes; add configurable side widgets and live system cards.
-2. **Capture and meetings:** recording preview and controls, microphone/system audio behavior, richer image editing, then per-app meeting controls with explicit permission and app-specific handling.
+2. **Capture and meetings:** recording preview and controls, microphone/system audio behavior, local on-device transcription, richer image editing, then per-app meeting controls with explicit permission and app-specific handling.
 3. **Media and activities:** queue/lyrics/floating player, activity arbitration, battery/network/device/notification activity sources.
 4. **Productivity and file actions:** calendar/tasks, launcher/action ring, conversion/compression, Finder actions, teleprompter, and local send.
 5. **Integrations and polish:** AI agents/MCP, Obsidian/Things/Kaset, window management, and optional iPhone sync.

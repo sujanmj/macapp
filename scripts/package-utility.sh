@@ -18,7 +18,9 @@ case "$name" in
   MacVoice)
     /usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' build/signed-entitlements.plist | /usr/bin/grep -qx true
     /usr/libexec/PlistBuddy -c 'Print :com.apple.security.personal-information.speech-recognition' build/signed-entitlements.plist | /usr/bin/grep -qx true ;;
-  MacNotch) /usr/libexec/PlistBuddy -c 'Print :com.apple.security.automation.apple-events' build/signed-entitlements.plist | /usr/bin/grep -qx true ;;
+  MacNotch)
+    /usr/libexec/PlistBuddy -c 'Print :com.apple.security.automation.apple-events' build/signed-entitlements.plist | /usr/bin/grep -qx true
+    /usr/libexec/PlistBuddy -c 'Print :com.apple.security.personal-information.speech-recognition' build/signed-entitlements.plist | /usr/bin/grep -qx true ;;
 esac
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT

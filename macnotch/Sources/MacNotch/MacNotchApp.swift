@@ -865,13 +865,14 @@ struct ScreenRecordingControls: View {
     @ObservedObject var recorder: ScreenRecorderController
     @Binding var includeSystemAudio: Bool
     @Binding var includeMicrophone: Bool
+    @StateObject private var transcriber = MeetingTranscriber()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Screen Recording").font(.headline)
-                    Text("Capture the primary display to a local movie file.").font(.caption).foregroundStyle(.secondary)
+                    Text("Recording & Meeting Notes").font(.headline)
+                    Text("Record locally, then create an on-device transcript.").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: recorder.isRecording ? "record.circle.fill" : "record.circle")
@@ -896,6 +897,30 @@ struct ScreenRecordingControls: View {
                     Button("Show Latest") { NSWorkspace.shared.activateFileViewerSelecting([latest]) }
                 }
             }.font(.system(size: 10))
+            if !recorder.isRecording {
+                HStack(spacing: 8) {
+                    Button {
+                        if let latest = recorder.latestRecording { Task { await transcriber.transcribe(latest) } }
+                    } label: {
+                        Label(transcriber.isTranscribing ? "Transcribing…" : "Transcribe Latest", systemImage: "waveform")
+                    }
+                    .disabled(recorder.latestRecording == nil || transcriber.isTranscribing)
+                    Button("Choose Recording…") {
+                        let panel = NSOpenPanel()
+                        panel.allowedContentTypes = [.movie]
+                        panel.allowsMultipleSelection = false
+                        panel.canChooseDirectories = false
+                        if panel.runModal() == .OK, let url = panel.url { Task { await transcriber.transcribe(url) } }
+                    }.disabled(transcriber.isTranscribing)
+                }.font(.system(size: 10))
+                Text(transcriber.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let transcript = transcriber.transcriptURL {
+                    HStack(spacing: 8) {
+                        Button("Open Transcript") { NSWorkspace.shared.open(transcript) }
+                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([transcript]) }
+                    }.font(.system(size: 10))
+                }
+            }
             Text("MacNotch is excluded from the captured video. Screen recording and optional microphone capture require macOS permissions; videos stay on this Mac.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(14).modifier(GlassCard(tint: .red))

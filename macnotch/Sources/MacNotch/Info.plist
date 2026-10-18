@@ -26,6 +26,8 @@
 	<string>MacNotch captures your display only when you request a screenshot or start a screen recording. Screenshots and recordings are saved locally on this Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MacNotch adds your microphone to a screen recording only when you enable Include microphone and start recording.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>MacNotch transcribes a recording only when you request it. Transcription requires on-device speech recognition and is not uploaded.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

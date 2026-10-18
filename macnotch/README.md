@@ -1,4 +1,4 @@
-# MacNotch v0.11
+# MacNotch v0.12
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -8,6 +8,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, and free disk space. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. It currently does not read third-party meeting, download, call, recording, or system-wide activity feeds.
 - **Screen Recording:** record the primary display to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from the captured video and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission.
+- **Meeting Notes:** after recording, explicitly transcribe the latest movie or choose an earlier recording. MacNotch extracts audio locally, requires Apple's on-device speech recognition, and saves a `.txt` transcript beside the movie. It does not upload recordings; unsupported languages stop with an explanation.
 - **Screen Capture & Text:** capture the entire primary display or one visible app window on demand, drag a crop in the preview, draw cyan markup on a separate image copy, and recognize visible text locally with Apple Vision. Captures save as PNGs in `Pictures/MacNotch Captures`.
 - **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows track and artist, previous/play/pause/next controls, and a seekable progress bar. The compact notch stays small.
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
@@ -28,7 +29,11 @@ The active ChatGPT or Gemini app can be recognized by its frontmost application 
 
 Run `bash scripts/package-utility.sh MacNotch` on macOS 14+ with Xcode and XcodeGen. It creates a universal Apple Silicon/Intel DMG and checksum. The beta is ad-hoc signed and unnotarized. macOS screen, microphone, player Automation permissions, file drag-and-drop, display arrangements, full-screen Spaces, and real recording output need testing on the target Mac. Gemini requests require a user-provided API key and network access.
 
-Run `bash scripts/check-utilities.sh` to check shared utility behavior, Gemini response handling, MacNotch system sampling, and local Vision OCR on a generated test image.
+Run `bash scripts/check-utilities.sh` to check shared utility behavior, Gemini response handling, MacNotch system sampling, and local Vision OCR on a generated test image. The meeting transcription flow compiles into the universal app; real transcription depends on macOS language assets and user-granted Speech Recognition permission.
+
+## v0.12
+
+Added user-requested meeting transcription for saved screen recordings. Audio extraction and speech recognition are constrained to the Mac; transcription is an explicit action and saves a neighboring text file. Added the speech-recognition usage prompt and signing entitlement, and made packaging verify that entitlement.
 
 ## v0.11
 
