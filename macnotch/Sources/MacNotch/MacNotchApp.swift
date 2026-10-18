@@ -937,8 +937,13 @@ private struct ElementCaptureView: View {
                 }
             }
             if let image = capture.image {
-                Image(nsImage: image).resizable().scaledToFit().frame(maxHeight: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                SelectableCaptureImage(image: image, selection: capture.selection, onSelection: { capture.setSelection($0) })
+                    .frame(height: 112).clipShape(RoundedRectangle(cornerRadius: 9))
+                if capture.selection != nil {
+                    Button { Task { await capture.readSelection() } } label: {
+                        Label("Save Crop & Read Text", systemImage: "text.viewfinder")
+                    }.buttonStyle(.borderedProminent).tint(.cyan).disabled(capture.busy)
+                }
             }
             if !capture.recognizedText.isEmpty {
                 ScrollView {
@@ -947,10 +952,73 @@ private struct ElementCaptureView: View {
                 }.frame(maxHeight: 92).padding(8).background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
             }
             Text(capture.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Text("Capture the entire display or one visible app window. Images save locally to Pictures/MacNotch Captures. Screen Recording permission is required. OCR runs locally with Apple Vision; captured text stays on this Mac unless you copy it.")
+            Text("Capture a display or visible app window, then drag over an area to crop and read only that selection. Images save locally to Pictures/MacNotch Captures. Screen Recording permission is required. OCR runs locally with Apple Vision.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(14).modifier(GlassCard(tint: .cyan))
             .task { await capture.refreshWindows() }
+    }
+}
+
+private struct SelectableCaptureImage: View {
+    let image: NSImage
+    let selection: CGRect?
+    let onSelection: (CGRect?) -> Void
+    @State private var dragStart: CGPoint?
+    @State private var dragEnd: CGPoint?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let imageSize = CGSize(width: max(1, image.size.width), height: max(1, image.size.height))
+            let scale = min(proxy.size.width / imageSize.width, proxy.size.height / imageSize.height)
+            let render = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+            let imageRect = CGRect(x: (proxy.size.width - render.width) / 2,
+                                   y: (proxy.size.height - render.height) / 2,
+                                   width: render.width, height: render.height)
+            ZStack {
+                Color.black.opacity(0.3)
+                Image(nsImage: image).resizable().frame(width: render.width, height: render.height)
+                    .position(x: imageRect.midX, y: imageRect.midY)
+                if let rect = selection.map({ displayRect($0, in: imageRect) }) ?? transientRect(in: imageRect) {
+                    Rectangle().fill(Color.cyan.opacity(0.20))
+                        .overlay(Rectangle().stroke(Color.cyan, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
+                        .frame(width: rect.width, height: rect.height).position(x: rect.midX, y: rect.midY)
+                        .allowsHitTesting(false)
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 3).onChanged { value in
+                if dragStart == nil { dragStart = bounded(value.startLocation, to: imageRect) }
+                dragEnd = bounded(value.location, to: imageRect)
+            }.onEnded { value in
+                let start = dragStart ?? bounded(value.startLocation, to: imageRect)
+                let end = bounded(value.location, to: imageRect)
+                let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                                  width: abs(end.x - start.x), height: abs(end.y - start.y))
+                if rect.width >= 8, rect.height >= 8 {
+                    onSelection(CGRect(x: (rect.minX - imageRect.minX) / imageRect.width,
+                                       y: (rect.minY - imageRect.minY) / imageRect.height,
+                                       width: rect.width / imageRect.width,
+                                       height: rect.height / imageRect.height))
+                }
+                dragStart = nil; dragEnd = nil
+            })
+        }
+        .accessibilityLabel("Screenshot preview. Drag to select an area for text recognition.")
+    }
+
+    private func bounded(_ point: CGPoint, to rect: CGRect) -> CGPoint {
+        CGPoint(x: min(max(point.x, rect.minX), rect.maxX), y: min(max(point.y, rect.minY), rect.maxY))
+    }
+
+    private func displayRect(_ normalized: CGRect, in rect: CGRect) -> CGRect {
+        CGRect(x: rect.minX + normalized.minX * rect.width, y: rect.minY + normalized.minY * rect.height,
+               width: normalized.width * rect.width, height: normalized.height * rect.height)
+    }
+
+    private func transientRect(in rect: CGRect) -> CGRect? {
+        guard let dragStart, let dragEnd else { return nil }
+        return CGRect(x: min(dragStart.x, dragEnd.x), y: min(dragStart.y, dragEnd.y),
+                      width: abs(dragEnd.x - dragStart.x), height: abs(dragEnd.y - dragStart.y))
     }
 }
 

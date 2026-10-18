@@ -47,7 +47,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | AI | Voice Transcribe | Partial — MacVoice is separate and not integrated into MacNotch |
 | AI | Coding Agents | Planned |
 | AI | MCP tools | Planned |
-| Capture | Element Capture | Partial — full-display or single-window screenshot with local OCR; region selection/editor/annotation remain |
+| Capture | Element Capture | Partial — display/window screenshot, drag crop, and local OCR; drawing/annotation remain |
 | Capture | Camera | Planned |
 | Capture | Text Capture / OCR | Planned |
 | Files | Finder Services | Partial — tray picker/drop exists; Finder context-menu service needed |
@@ -70,7 +70,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 ## Release sequence
 
 1. **Core shelf and widgets:** harden drop targets and file lifetimes; add configurable side widgets and live system cards.
-2. **Capture and meetings:** recording preview and controls, microphone/system audio behavior, region selection/annotation, then per-app meeting controls with explicit permission and app-specific handling.
+2. **Capture and meetings:** recording preview and controls, microphone/system audio behavior, annotation, then per-app meeting controls with explicit permission and app-specific handling.
 3. **Media and activities:** queue/lyrics/floating player, activity arbitration, battery/network/device/notification activity sources.
 4. **Productivity and file actions:** calendar/tasks, launcher/action ring, conversion/compression, Finder actions, teleprompter, and local send.
 5. **Integrations and polish:** AI agents/MCP, Obsidian/Things/Kaset, window management, and optional iPhone sync.
