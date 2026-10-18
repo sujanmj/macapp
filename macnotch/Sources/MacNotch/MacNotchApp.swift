@@ -30,6 +30,7 @@ final class NotchStore: ObservableObject {
     @Published var expandedHeight: CGFloat = 248
     @Published var pinned = false
     @Published var hideInFullScreen = UserDefaults.standard.object(forKey: "hideMacNotchInFullScreen") as? Bool ?? true
+    @Published var highlightPreset = UserDefaults.standard.string(forKey: "macNotchHighlightPreset") ?? "Electric Blue"
     var resize: (() -> Void)?
     var applyFullScreenVisibility: ((Bool) -> Void)?
     @Published var clips: [ClipboardRecord] = []
@@ -63,6 +64,17 @@ final class NotchStore: ObservableObject {
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
     private var hudID = UUID()
     let hardware = HardwareFeedback()
+    var highlightColor: Color {
+        switch highlightPreset {
+        case "Indigo": Color(red: 0.35, green: 0.34, blue: 1.0)
+        case "Violet": Color(red: 0.58, green: 0.30, blue: 1.0)
+        case "Magenta": Color(red: 0.86, green: 0.25, blue: 0.88)
+        case "Rose": Color(red: 1.0, green: 0.30, blue: 0.55)
+        case "Cyan": Color(red: 0.20, green: 0.82, blue: 1.0)
+        case "Teal": Color(red: 0.12, green: 0.76, blue: 0.70)
+        default: Color(red: 0.31, green: 0.40, blue: 1.0)
+        }
+    }
     private var appObserver: NSObjectProtocol?
     func setHardware(_ enabled: Bool) {
         hardwareEnabled = enabled
@@ -321,7 +333,8 @@ struct NotchView: View {
         .background {
             if store.expanded {
                 NotchGlass()
-                    .overlay(LinearGradient(colors: [.cyan.opacity(0.16), .purple.opacity(0.13), .pink.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .overlay(Color.black.opacity(0.66))
+                    .overlay(LinearGradient(colors: [Color(red: 0.08, green: 0.12, blue: 0.70).opacity(0.22), Color(red: 0.36, green: 0.10, blue: 0.76).opacity(0.20), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
             } else {
                 Color.black
             }
@@ -329,12 +342,12 @@ struct NotchView: View {
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 16,
                                           bottomTrailingRadius: store.expanded ? 28 : 16, topTrailingRadius: 5))
         .overlay(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 14, bottomTrailingRadius: store.expanded ? 28 : 14, topTrailingRadius: 5).strokeBorder(.white.opacity(store.expanded ? 0.3 : 0.12), lineWidth: 0.7))
-        .foregroundStyle(.primary)
-        .preferredColorScheme(.light)
+        .foregroundStyle(.white)
+        .preferredColorScheme(.dark)
         .animation(reduceMotion ? nil : .smooth(duration: 0.32), value: store.expanded)
         .onHover { store.hover($0) }
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.hardwareHUD != nil)
-        .buttonStyle(NotchControlStyle())
+        .buttonStyle(NotchControlStyle(tint: store.highlightColor))
     }
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -409,10 +422,10 @@ struct NotchView: View {
                     }
                 }.buttonStyle(.plain).frame(maxWidth: .infinity)
             }.padding(14).frame(width: 250, height: 148, alignment: .topLeading)
-                .modifier(GlassCard(tint: .cyan))
+                .modifier(GlassCard(tint: store.highlightColor))
             VStack(spacing: 8) {
-                dashboardAction("Ask", detail: "Gemini", symbol: "sparkles", color: .cyan) { tab = "Gemini"; store.expandedHeight = 340; store.resize?() }
-                dashboardAction("Notes", detail: "Catch a thought", symbol: "note.text", color: .orange) { tab = "Notes"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Ask", detail: "Gemini", symbol: "sparkles", color: store.highlightColor) { tab = "Gemini"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Notes", detail: "Catch a thought", symbol: "note.text", color: store.highlightColor) { tab = "Notes"; store.expandedHeight = 340; store.resize?() }
             }.frame(width: 130)
             VStack(alignment: .leading, spacing: 12) {
                 Text(Date(), format: .dateTime.weekday(.wide)).font(.system(size: 10)).foregroundStyle(.gray)
@@ -442,7 +455,7 @@ struct NotchView: View {
         }.buttonStyle(.plain)
     }
     private func accent(_ section: String) -> Color {
-        switch section { case "Home": return .blue; case "Music": return .green; case "Clipboard": return .purple; case "Gemini": return .cyan; case "Focus": return .orange; default: return .pink }
+        switch section { case "Music": return .green; case "Focus": return .orange; default: return store.highlightColor }
     }
     private var expandButton: some View {
         Button { store.expanded = true; store.pinned = true; store.resize?() } label: {
@@ -578,6 +591,11 @@ struct NotchSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("MacNotch Settings").font(.title2.bold())
+                Picker("Highlight color", selection: $store.highlightPreset) {
+                    ForEach(["Electric Blue", "Indigo", "Violet", "Magenta", "Rose", "Cyan", "Teal"], id: \.self) { color in Text(color).tag(color) }
+                }
+                .onChange(of: store.highlightPreset) { _, value in UserDefaults.standard.set(value, forKey: "macNotchHighlightPreset") }
+                Text("Choose the accent that flows through the glass panel, buttons, and activity highlights.").font(.caption)
                 GeminiSettings()
                 TextField("Gemini model", text: $store.model)
                 Toggle("Volume and brightness feedback", isOn: Binding(get: { store.hardwareEnabled }, set: { store.setHardware($0) }))

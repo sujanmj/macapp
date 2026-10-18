@@ -1,4 +1,4 @@
-# MacNotch v0.4
+# MacNotch v0.5
 
 MacNotch is a native macOS productivity panel. While collapsed, it stays a small black pill close to the built-in camera notch size, with a subtle MacNotch mark. Hover or click to unfold its colorful glass dashboard; pin it open or use **Control–Option–N** to toggle it. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -14,3 +14,7 @@ The active ChatGPT or Gemini app can be recognized by its frontmost application 
 ## Build and checks
 
 Run `bash scripts/package-utility.sh MacNotch` on macOS 14+ with Xcode and XcodeGen. It creates a universal Apple Silicon/Intel DMG and checksum. Beta builds are ad-hoc signed and unnotarized. macOS permission prompts, display arrangements, full-screen Spaces, and player Automation should be tested on the target Mac. Gemini requests require a user-provided API key and network access.
+
+## v0.5
+
+Restyled the panel around Droppy's Dynamic Glass presentation: a black compact notch, dark frosted expansion, and vivid blue-violet accents. Added seven saved highlight-color presets for the panel, controls, and feature highlights. Existing MacNotch features remain; this visual update does not claim parity with Droppy's full extension catalogue.
