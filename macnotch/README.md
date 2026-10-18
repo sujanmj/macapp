@@ -1,10 +1,10 @@
-# MacNotch v0.13
+# MacNotch v0.14
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
 ## Working features
 
-- **File Tray:** drag files and folders onto the notch or add them through the file picker. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive on the Desktop. The tray stores file paths and does not move or copy the originals.
+- **File Tray:** drag files and folders onto the notch or add them through the file picker. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive on the Desktop. The tray stores file paths and does not move or copy the originals.
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, and free disk space. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. It currently does not read third-party meeting, download, call, recording, or system-wide activity feeds.
 - **Screen Recording:** record the primary display to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from the captured video and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission.
@@ -38,6 +38,10 @@ Added user-requested meeting transcription for saved screen recordings. Audio ex
 ## v0.13
 
 Added multi-select file references for the tray, so several items can be copied together and pasted into Finder or compatible apps. Added system Share actions and per-item Copy Path context actions. These only share or copy references; original files stay in place.
+
+## v0.14
+
+Added a separate floating file shelf, available from the File Tray and menu bar. It accepts dropped files and folders, allows drag-out, and shares the tray's multi-select copy action, so the shelf can stay available while you work in other apps.
 
 ## v0.11
 

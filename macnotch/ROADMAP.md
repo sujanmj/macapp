@@ -10,7 +10,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | --- | --- | --- |
 | Dynamic notch and island | Partial | Compact black notch, glass panel, saved accent colors, fullscreen preference; notchless display island still needed. |
 | File tray | Partial | Persistent path list, file picker and drop, drag-out, open/reveal/remove, ZIP; destination-aware transient shelf and quick actions still needed. |
-| Floating file tray | Planned | Movable desktop tray for files while working elsewhere. |
+| Floating file tray | Partial | Separate movable shelf with drop-in, drag-out, multi-select copy; destination-aware quick actions still needed. |
 | Quick Actions | Planned | Configurable actions for dropped files. |
 | File Transform | Planned | Local conversion/compression workflows. |
 | Clipboard | Partial | Session memory history with privacy exclusions; persistent search, pinning, and cross-device sync still needed. |

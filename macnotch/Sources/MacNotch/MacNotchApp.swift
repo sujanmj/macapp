@@ -87,6 +87,7 @@ final class NotchStore: ObservableObject {
     @Published var selectedTrayIDs = Set<UUID>()
     @Published var metrics = MacMetrics()
     @Published var trayDropTargeted = false
+    var showFloatingTray: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
     @Published var capture = ElementCaptureController()
     @Published var includeSystemAudio = UserDefaults.standard.object(forKey: "macNotchRecordSystemAudio") as? Bool ?? true
@@ -651,6 +652,8 @@ struct NotchView: View {
                     Text("Hold files from different folders here while you work.").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button { store.showFloatingTray?() } label: { Label("Float", systemImage: "macwindow.on.rectangle") }
+                    .help("Open a floating file shelf")
                 Button { chooseTrayFiles() } label: { Label("Add", systemImage: "plus") }
                     .buttonStyle(.borderedProminent).tint(store.highlightColor)
             }
@@ -893,6 +896,95 @@ struct NotchView: View {
         }
     }
 
+}
+
+private struct FloatingTrayView: View {
+    @ObservedObject var store: NotchStore
+    @State private var targeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("File Shelf", systemImage: "tray.full.fill").font(.headline).foregroundStyle(store.highlightColor)
+                Spacer()
+                Button { chooseFiles() } label: { Label("Add", systemImage: "plus") }
+            }
+            Text("Keep files here while you work in other apps. Drag items out to hand them off.")
+                .font(.caption).foregroundStyle(.secondary)
+            if store.trayFiles.isEmpty {
+                Label("Drop files here", systemImage: "arrow.down.to.line.compact")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .background(store.highlightColor.opacity(targeted ? 0.24 : 0.10), in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(store.highlightColor.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        ForEach(store.trayFiles) { entry in
+                            HStack(spacing: 8) {
+                                Toggle("Select \(entry.name)", isOn: Binding(
+                                    get: { store.selectedTrayIDs.contains(entry.id) },
+                                    set: { selected in
+                                        if selected { store.selectedTrayIDs.insert(entry.id) }
+                                        else { store.selectedTrayIDs.remove(entry.id) }
+                                    }
+                                )).labelsHidden().toggleStyle(.checkbox)
+                                Image(systemName: entry.isDirectory ? "folder.fill" : "doc.fill").foregroundStyle(store.highlightColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name).lineLimit(1).font(.system(size: 11, weight: .medium))
+                                    Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Folder")
+                                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 2)
+                                Button { store.openTrayEntry(entry) } label: { Image(systemName: "arrow.up.forward.app") }.help("Open")
+                                Button { store.removeTrayEntry(entry) } label: { Image(systemName: "xmark.circle") }.help("Remove")
+                            }
+                            .buttonStyle(.plain).padding(8)
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                            .draggable(entry.url)
+                        }
+                    }
+                }
+                .frame(minHeight: 100, maxHeight: 260)
+            }
+            HStack(spacing: 8) {
+                Text("\(store.trayFiles.count) items").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Button(store.selectedTrayIDs.count == store.trayFiles.count ? "Deselect All" : "Select All") { store.selectAllTrayFiles() }.disabled(store.trayFiles.isEmpty)
+            }.font(.system(size: 10))
+            Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+        }
+        .padding(16).frame(width: 360)
+        .background(NotchGlass().overlay(Color.black.opacity(0.68)))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(targeted ? store.highlightColor : .clear, lineWidth: 2))
+        .onDrop(of: [UTType.fileURL], isTargeted: $targeted, perform: acceptDroppedFiles)
+    }
+
+    private func chooseFiles() {
+        let panel = NSOpenPanel()
+        panel.title = "Add files to MacNotch File Shelf"
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        if panel.runModal() == .OK { store.addTrayURLs(panel.urls) }
+    }
+
+    private func acceptDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        let matching = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !matching.isEmpty else { return false }
+        for provider in matching {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url = (item as? URL)
+                    ?? (item as? NSURL).map { $0 as URL }
+                    ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                guard let url, url.isFileURL else { return }
+                DispatchQueue.main.async { store.addTrayURLs([url]) }
+            }
+        }
+        return true
+    }
 }
 
 struct ScreenRecordingControls: View {
@@ -1162,6 +1254,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     let shortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
+    var floatingTray: FloatingWindow?
     var displayObserver: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
         window = FloatingWindow(title: "MacNotch", size: NSSize(width: 500, height: 300), content: NotchView(store: store))
@@ -1177,6 +1270,8 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.applyFullScreenVisibility?(store.hideInFullScreen)
         store.resize = { [weak self] in self?.position() }
         settings = FloatingWindow(title: "MacNotch Settings", size: NSSize(width: 500, height: 440), content: NotchSettings(store: store))
+        floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
+        store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
         shortcut.action = { [weak self] in self?.toggle() }
         if !shortcut.register(key: UInt32(kVK_ANSI_N), modifiers: UInt32(controlKey | optionKey)) { store.message = "Shortcut unavailable; use the menu bar." }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -1210,6 +1305,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.expanded.toggle(); store.pinned = store.expanded; position()
         window?.panel.orderFrontRegardless()
     }
+    func showFloatingTray() { floatingTray?.show() }
     func applicationWillTerminate(_ notification: Notification) { if let displayObserver { NotificationCenter.default.removeObserver(displayObserver) } }
 }
 
@@ -1219,6 +1315,7 @@ struct MacNotchApp: App {
     var body: some Scene {
         MenuBarExtra("MacNotch", systemImage: "capsule.fill") {
             Button("Show / Hide Panel") { delegate.toggle() }
+            Button("Floating File Shelf") { delegate.showFloatingTray() }
             Button("Settings") { delegate.settings?.show() }
             Divider(); Button("Quit MacNotch") { NSApp.terminate(nil) }
         }
