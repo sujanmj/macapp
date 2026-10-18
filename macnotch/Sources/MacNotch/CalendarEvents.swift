@@ -33,7 +33,7 @@ final class CalendarEventsController: ObservableObject {
                 }
             }
             let updatedStatus = EKEventStore.authorizationStatus(for: .event)
-            guard updatedStatus == .fullAccess || updatedStatus == .authorized else {
+            guard updatedStatus == .fullAccess else {
                 message = "Allow full calendar access in System Settings → Privacy & Security → Calendars to read upcoming events."
                 return
             }
@@ -89,7 +89,7 @@ final class CalendarTasksController: ObservableObject {
                 }
             }
             let updatedStatus = EKEventStore.authorizationStatus(for: .reminder)
-            guard updatedStatus == .fullAccess || updatedStatus == .authorized else {
+            guard updatedStatus == .fullAccess else {
                 message = "Allow full reminder access in System Settings → Privacy & Security → Reminders to load tasks."
                 return
             }

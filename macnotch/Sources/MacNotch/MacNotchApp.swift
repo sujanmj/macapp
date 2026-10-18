@@ -208,6 +208,30 @@ final class NotchStore: ObservableObject {
     }
     func openTrayEntry(_ entry: TrayEntry) { NSWorkspace.shared.open(entry.url) }
     func revealTrayEntry(_ entry: TrayEntry) { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }
+    func createSmallerJPEGCopy(from sourceURL: URL) {
+        let panel = NSSavePanel()
+        panel.title = "Save Smaller JPEG Copy"
+        panel.nameFieldStringValue = sourceURL.deletingPathExtension().lastPathComponent + "-smaller.jpg"
+        panel.allowedContentTypes = [.jpeg]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destinationURL = panel.url else { message = "Image export canceled."; return }
+        guard sourceURL.standardizedFileURL != destinationURL.standardizedFileURL else {
+            message = "Choose a new file name; the original image will not be overwritten."
+            return
+        }
+        message = "Creating a smaller JPEG copy…"
+        Task.detached(priority: .userInitiated) { [store = self, sourceURL, destinationURL] in
+            do {
+                try ImageFileActions.createSmallerJPEG(from: sourceURL, to: destinationURL)
+                await MainActor.run {
+                    store.message = "Saved smaller JPEG copy as \(destinationURL.lastPathComponent). The original image is unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting([destinationURL])
+                }
+            } catch {
+                await MainActor.run { store.message = "Image export failed: \(error.localizedDescription)" }
+            }
+        }
+    }
     func selectAllTrayFiles() {
         if !trayFiles.isEmpty && selectedTrayIDs.count == trayFiles.count { selectedTrayIDs.removeAll() }
         else { selectedTrayIDs = Set(trayFiles.map(\.id)) }
@@ -715,6 +739,9 @@ struct NotchView: View {
                                     store.message = "Copied file path."
                                 }
                                 Button("Show in Finder") { store.revealTrayEntry(entry) }
+                                if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
+                                    Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
+                                }
                                 Button("Remove from Tray", role: .destructive) { store.removeTrayEntry(entry) }
                             }
                         }
@@ -951,6 +978,13 @@ private struct FloatingTrayView: View {
                             .buttonStyle(.plain).padding(8)
                             .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
                             .draggable(entry.url)
+                            .contextMenu {
+                                if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
+                                    Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
+                                }
+                                Button("Show in Finder") { store.revealTrayEntry(entry) }
+                                Button("Remove from Tray", role: .destructive) { store.removeTrayEntry(entry) }
+                            }
                         }
                     }
                 }

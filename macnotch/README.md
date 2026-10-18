@@ -1,10 +1,10 @@
-# MacNotch v0.19
+# MacNotch v0.20
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
 ## Working features
 
-- **File Tray:** drag files and folders onto the notch or add them through the file picker. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive from all or selected files and choose where to save it. The tray stores file paths and does not move or copy the originals.
+- **File Tray:** drag files and folders onto the notch or add them through the file picker. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references to paste into Finder or another app; share, open, reveal, or remove individual items; create a ZIP archive from all or selected files and choose where to save it. For images, create a smaller JPEG copy with dimensions capped at 2048 pixels; transparency is flattened to white and the source stays untouched.
 - **Floating Shelf Shortcut:** use **Control–Option–F** from anywhere to open the file shelf. Its size and screen position are restored between launches.
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, and free disk space. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. It currently does not read third-party meeting, download, call, recording, or system-wide activity feeds.
@@ -64,6 +64,10 @@ Added an on-demand Reminders view alongside events, listing incomplete reminders
 ## v0.19
 
 Added a Finder Services action that sends selected file references directly to MacNotch's tray and opens the tray for review. The installer build verifies the service's Info.plist registration and provider port.
+
+## v0.20
+
+Added an image quick action that downsamples oversized images to a 2048-pixel maximum edge and writes a JPEG copy with a compression setting tuned for smaller files. A Save panel chooses the destination; originals are never overwritten. Generated-image checks verify the output dimensions, file type, and source retention.
 
 ## v0.11
 

@@ -22,3 +22,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/LocalTextRecognizer.swift macnotch/Sources/MacNotch/CaptureMarkupRenderer.swift scripts/macnotch-capture-tests.swift \
   -o "$scratch/macnotch-capture-check"
 "$scratch/macnotch-capture-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/ImageFileActions.swift scripts/macnotch-image-actions-tests.swift \
+  -framework AppKit -framework ImageIO -framework UniformTypeIdentifiers -o "$scratch/macnotch-image-actions-check"
+"$scratch/macnotch-image-actions-check"
