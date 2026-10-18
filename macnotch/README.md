@@ -1,4 +1,4 @@
-# MacNotch v0.16
+# MacNotch v0.17
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -15,6 +15,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
 - **Clipboard:** explicitly enable in-memory session history, up to 20 clips. Copy items or combine selected text. Clear or disable to erase it; concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
+- **Calendar:** explicitly load upcoming events from the next seven days. MacNotch asks for Calendar permission only after you press Load Events; event data remains local. Reminder editing and task integrations are still in progress.
 - **Notes, Siri, and Shortcuts:** notes save locally; Siri opens Apple's own interface rather than running inside MacNotch.
 - **Hardware feedback:** optional volume and brightness-key indications. macOS exposes brightness direction rather than a dependable percentage on supported Macs.
 
@@ -51,6 +52,10 @@ Added the global Control–Option–F shortcut for the floating shelf and restor
 ## v0.16
 
 ZIP creation now archives only the selected tray files when a selection exists, and asks where to save the archive. With no selection, it archives the full tray. The floating shelf exposes the same action; source files remain untouched.
+
+## v0.17
+
+Added a Calendar tab that can display up to 40 upcoming events for the next seven days after the user explicitly loads them. Calendar permission is requested on demand and events are read locally; reminder and task editing are not included yet.
 
 ## v0.11
 

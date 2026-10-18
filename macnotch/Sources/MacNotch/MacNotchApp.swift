@@ -462,10 +462,10 @@ struct NotchView: View {
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 5) {
-                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Notes"], id: \.self) { item in
+                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : 340
+                        store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
@@ -493,6 +493,7 @@ struct NotchView: View {
                 case "Clipboard": clipboard
                 case "Gemini": gemini
                 case "Focus": focus
+                case "Events": CalendarEventsView()
                 default: notes
                 }
             }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -515,6 +516,7 @@ struct NotchView: View {
         case "Clipboard": return "doc.on.clipboard"
         case "Gemini": return "sparkles"
         case "Focus": return "timer"
+        case "Events": return "calendar"
         default: return "note.text"
         }
     }
@@ -575,7 +577,7 @@ struct NotchView: View {
         }.buttonStyle(.plain)
     }
     private func accent(_ section: String) -> Color {
-        switch section { case "Music": return .green; case "Focus": return .orange; default: return store.highlightColor }
+        switch section { case "Music": return .green; case "Focus": return .orange; case "Events": return .cyan; default: return store.highlightColor }
     }
     private var expandButton: some View {
         Button { store.expanded = true; store.pinned = true; store.resize?() } label: {
@@ -991,6 +993,57 @@ private struct FloatingTrayView: View {
             }
         }
         return true
+    }
+}
+
+private struct CalendarEventsView: View {
+    @StateObject private var controller = CalendarEventsController()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Calendar").font(.headline)
+                    Text("Upcoming events · next 7 days").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    Task { await controller.loadUpcomingEvents() }
+                } label: {
+                    Label(controller.busy ? "Loading…" : (controller.hasLoaded ? "Refresh" : "Load Events"), systemImage: "calendar.badge.clock")
+                }.disabled(controller.busy).buttonStyle(.borderedProminent).tint(.cyan)
+            }
+            if !controller.events.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        ForEach(controller.events) { event in
+                            HStack(spacing: 10) {
+                                VStack(spacing: 2) {
+                                    Text(event.start.formatted(.dateTime.day())).font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    Text(event.start.formatted(.dateTime.month(.abbreviated))).font(.system(size: 8, weight: .medium)).foregroundStyle(.cyan)
+                                }.frame(width: 34)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(event.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                    HStack(spacing: 5) {
+                                        Text(event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened))
+                                        Text("·")
+                                        Text(event.calendarTitle).lineLimit(1)
+                                    }.font(.system(size: 9)).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 0)
+                            }.padding(8).background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                }.frame(maxHeight: 220)
+            } else if controller.hasLoaded {
+                ContentUnavailableView("No upcoming events", systemImage: "calendar", description: Text("Nothing is scheduled in the next seven days."))
+                    .frame(height: 110)
+            } else {
+                ContentUnavailableView("Your calendar, at a glance", systemImage: "calendar", description: Text("Load events when you’re ready. MacNotch asks for Calendar access only after you press the button."))
+                    .frame(height: 120)
+            }
+            Text(controller.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }.padding(14).modifier(GlassCard(tint: .cyan))
     }
 }
 

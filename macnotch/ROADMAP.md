@@ -26,7 +26,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | --- | --- | --- |
 | Productivity | Alfred Workflow | Planned |
 | Productivity | Termi-Notch | Planned |
-| Productivity | Calendar and Tasks | Planned |
+| Productivity | Calendar and Tasks | Partial — on-demand upcoming-event list; reminders and task actions remain |
 | Productivity | Pomodoro | Partial — basic Focus timer exists |
 | Productivity | Meetings | Partial — local screen/system/mic recording and explicit on-device transcript; third-party meeting controls still needed |
 | Productivity | Notes | Partial — local quick note only |
