@@ -108,6 +108,8 @@ final class NotchStore: ObservableObject {
     var showFloatingPlayer: (() -> Void)?
     var showFloatingStats: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
+    let calendarEventsController = CalendarEventsController()
+    let calendarTasksController = CalendarTasksController()
     @Published var capture = ElementCaptureController()
     @Published var includeSystemAudio = UserDefaults.standard.object(forKey: "macNotchRecordSystemAudio") as? Bool ?? true
     @Published var includeMicrophone = UserDefaults.standard.object(forKey: "macNotchRecordMicrophone") as? Bool ?? false
@@ -742,7 +744,7 @@ struct NotchView: View {
                 case "Clipboard": clipboard
                 case "Gemini": gemini
                 case "Focus": focus
-                case "Events": CalendarEventsView()
+                case "Events": CalendarEventsView(store: store)
                 default: notes
                 }
             }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -1063,28 +1065,9 @@ struct NotchView: View {
         }
     }
     private var liveActivities: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Live Activities").font(.headline)
-                    Text("A live view of the tasks MacNotch currently tracks.").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Circle().fill(.green).frame(width: 7, height: 7)
-                Text("LIVE").font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(.green)
-            }
-            ScrollView {
-                VStack(spacing: 7) {
-                    activityRow("Music", detail: store.playing ? "\(store.track) · \(store.artist)" : (store.musicEnabled ? "Player connected · nothing playing" : "Not connected"), symbol: "music.note", tint: .green, active: store.playing)
-                    activityRow("Focus", detail: store.focusEnd.map { _ in "\(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
-                    activityRow("File Tray", detail: store.trayFiles.isEmpty ? "Ready for files" : "\(store.trayFiles.count) file\(store.trayFiles.count == 1 ? "" : "s") waiting in your tray", symbol: "tray.full.fill", tint: store.highlightColor, active: !store.trayFiles.isEmpty)
-                    activityRow("Screen recording", detail: store.recording ? "Recording · \(clock(Double(store.recordingSeconds)))" : "Not recording", symbol: "record.circle", tint: .red, active: store.recording)
-                    activityRow("Frontmost app", detail: store.activeApp.isEmpty ? "Unavailable" : store.activeApp, symbol: "macwindow", tint: .cyan, active: true)
-                }
-            }.frame(height: 185)
-            Text("Third-party calls, downloads, and system-wide activity feeds are not yet integrated. This view only reports state MacNotch can currently observe.")
-                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
+        LiveActivitiesView(store: store,
+                          calendar: store.calendarEventsController,
+                          tasks: store.calendarTasksController)
     }
     private var recordingControls: some View {
         ScreenRecordingControls(recorder: store.recorder, includeSystemAudio: Binding(
@@ -1199,6 +1182,67 @@ struct NotchView: View {
         }
     }
 
+}
+
+
+private struct LiveActivitiesView: View {
+    @ObservedObject var store: NotchStore
+    @ObservedObject var calendar: CalendarEventsController
+    @ObservedObject var tasks: CalendarTasksController
+
+    private var calendarDetail: String {
+        guard calendar.hasLoaded else { return "Load events in Calendar & Tasks" }
+        let now = Date()
+        guard let event = calendar.events.first(where: { $0.end > now }) else { return "No upcoming events" }
+        let when = event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened)
+        return event.start <= now ? "Now · \(event.title)" : "\(when) · \(event.title)"
+    }
+
+    private var reminderDetail: String {
+        guard tasks.hasLoaded else { return "Load reminders in Calendar & Tasks" }
+        guard let reminder = tasks.reminders.first else { return "No incomplete reminders" }
+        let due = reminder.dueDate.map { $0.formatted(date: .abbreviated, time: .omitted) }
+        return ([reminder.title] + (due.map { [$0] } ?? [])).joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Live Activities").font(.headline)
+                    Text("A live view of the tasks MacNotch currently tracks.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Circle().fill(.green).frame(width: 7, height: 7)
+                Text("LIVE").font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(.green)
+            }
+            ScrollView {
+                VStack(spacing: 7) {
+                    row("Music", detail: store.playing ? "\(store.track) · \(store.artist)" : (store.musicEnabled ? "Player connected · nothing playing" : "Not connected"), symbol: "music.note", tint: .green, active: store.playing)
+                    row("Focus", detail: store.focusEnd.map { _ in "\(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
+                    row("Next event", detail: calendarDetail, symbol: "calendar", tint: .cyan, active: calendar.hasLoaded && calendar.events.contains { $0.end > Date() })
+                    row("Next reminder", detail: reminderDetail, symbol: "checklist", tint: .yellow, active: tasks.hasLoaded && !tasks.reminders.isEmpty)
+                    row("File Tray", detail: store.trayFiles.isEmpty ? "Ready for files" : "\(store.trayFiles.count) file\(store.trayFiles.count == 1 ? "" : "s") waiting in your tray", symbol: "tray.full.fill", tint: store.highlightColor, active: !store.trayFiles.isEmpty)
+                    row("Screen recording", detail: store.recording ? "Recording · \(String(format: "%d:%02d", store.recordingSeconds / 60, store.recordingSeconds % 60))" : "Not recording", symbol: "record.circle", tint: .red, active: store.recording)
+                    row("Frontmost app", detail: store.activeApp.isEmpty ? "Unavailable" : store.activeApp, symbol: "macwindow", tint: .cyan, active: true)
+                }
+            }.frame(height: 255)
+            Text("Third-party calls, downloads, and system-wide activity feeds are not yet integrated. This view only reports state MacNotch can currently observe.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func row(_ title: String, detail: String, symbol: String, tint: Color, active: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(tint).frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 10, weight: .semibold))
+                Text(detail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Circle().fill(active ? tint : .gray.opacity(0.55)).frame(width: 6, height: 6)
+        }.padding(.horizontal, 11).padding(.vertical, 9).modifier(GlassCard(tint: tint))
+    }
 }
 
 private struct FloatingPlayerView: View {
@@ -1560,8 +1604,12 @@ private struct FloatingTrayView: View {
 }
 
 private struct CalendarEventsView: View {
-    @StateObject private var controller = CalendarEventsController()
-    @StateObject private var tasks = CalendarTasksController()
+    @ObservedObject var controller: CalendarEventsController
+    @ObservedObject var tasks: CalendarTasksController
+    init(store: NotchStore) {
+        controller = store.calendarEventsController
+        tasks = store.calendarTasksController
+    }
     @State private var section = "Events"
     @State private var showingReminderComposer = false
 
