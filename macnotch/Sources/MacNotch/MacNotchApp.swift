@@ -22,6 +22,27 @@ struct ClipboardRecord: Identifiable {
     let payload: [[String: Data]]
 }
 
+struct TrayEntry: Codable, Identifiable, Hashable {
+    let id: UUID
+    let path: String
+    let addedAt: Date
+    var url: URL { URL(fileURLWithPath: path) }
+    var name: String { url.lastPathComponent }
+    var isDirectory: Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    }
+    var size: Int64? {
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
+        guard values?.isDirectory != true, let bytes = values?.fileSize else { return nil }
+        return Int64(bytes)
+    }
+    init(url: URL) {
+        self.id = UUID()
+        self.path = url.standardizedFileURL.path
+        self.addedAt = Date()
+    }
+}
+
 @MainActor
 final class NotchStore: ObservableObject {
     @Published var expanded = false
@@ -62,6 +83,11 @@ final class NotchStore: ObservableObject {
     @Published var outputTokens: Int?
     @Published var sessionTokens = 0
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
+    @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
+    @Published var metrics = MacMetrics()
+    @Published var trayDropTargeted = false
+    private let sampler = SystemSampler()
+    private var lastMetricSample = Date.distantPast
     private var hudID = UUID()
     let hardware = HardwareFeedback()
     var highlightColor: Color {
@@ -139,11 +165,57 @@ final class NotchStore: ObservableObject {
     }
     func tick() {
         ticks += 1
+        if Date().timeIntervalSince(lastMetricSample) >= 2 {
+            metrics = sampler.sample()
+            lastMetricSample = metrics.sampledAt
+        }
         if clipboardEnabled { sampleClipboard() }
         if musicEnabled { refreshMusic() }
         if let focusEnd {
             remaining = max(0, Int(ceil(focusEnd.timeIntervalSinceNow)))
             if remaining == 0 { self.focusEnd = nil; NSSound.beep(); message = "Focus session complete." }
+        }
+    }
+    func addTrayURLs(_ urls: [URL]) {
+        let existing = Set(trayFiles.map(\.path))
+        let additions = urls.filter { $0.isFileURL && FileManager.default.fileExists(atPath: $0.path) }
+            .map { $0.standardizedFileURL }
+            .filter { !existing.contains($0.path) }
+            .map(TrayEntry.init(url:))
+        guard !additions.isEmpty else { return }
+        trayFiles.insert(contentsOf: additions, at: 0)
+        persistTray()
+        message = "Added \(additions.count) item\(additions.count == 1 ? "" : "s") to the file tray."
+    }
+    func removeTrayEntry(_ entry: TrayEntry) {
+        trayFiles.removeAll { $0.id == entry.id }
+        persistTray()
+    }
+    func clearTray() { trayFiles.removeAll(); persistTray() }
+    private func persistTray() {
+        if let data = try? JSONEncoder().encode(trayFiles) { UserDefaults.standard.set(data, forKey: "macNotchTrayFiles") }
+    }
+    func openTrayEntry(_ entry: TrayEntry) { NSWorkspace.shared.open(entry.url) }
+    func revealTrayEntry(_ entry: TrayEntry) { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }
+    func zipTray() {
+        let urls = trayFiles.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty else { message = "Add existing files to the tray before creating an archive."; return }
+        let destination = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/MacNotch-\(Int(Date().timeIntervalSince1970)).zip")
+        Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent"] + urls.map(\.path) + [destination.path]
+            do {
+                try process.run(); process.waitUntilExit()
+                await MainActor.run {
+                    if process.terminationStatus == 0 {
+                        self.message = "Archive saved to Desktop as \(destination.lastPathComponent)."
+                        NSWorkspace.shared.activateFileViewerSelecting([destination])
+                    } else { self.message = "Could not create the ZIP archive. Check available disk space and file access." }
+                }
+            } catch {
+                await MainActor.run { self.message = "Could not create the ZIP archive: \(error.localizedDescription)" }
+            }
         }
     }
     func setClipboard(_ enabled: Bool) {
@@ -348,14 +420,15 @@ struct NotchView: View {
         .onHover { store.hover($0) }
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.hardwareHUD != nil)
         .buttonStyle(NotchControlStyle(tint: store.highlightColor))
+        .onDrop(of: [UTType.fileURL], isTargeted: $store.trayDropTargeted, perform: acceptDroppedFiles)
     }
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 5) {
-                ForEach(["Home", "Music", "Clipboard", "Gemini", "Focus", "Notes"], id: \.self) { item in
+                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Clipboard", "Gemini", "Focus", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : 340
+                        store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" ? 360 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
@@ -375,6 +448,9 @@ struct NotchView: View {
                 switch tab {
                 case "Home": dashboard
                 case "Music": media
+                case "Tray": fileTray
+                case "Widgets": widgets
+                case "Live": liveActivities
                 case "Clipboard": clipboard
                 case "Gemini": gemini
                 case "Focus": focus
@@ -392,6 +468,9 @@ struct NotchView: View {
         switch name {
         case "Home": return "square.grid.2x2.fill"
         case "Music": return "music.note"
+        case "Tray": return "tray.full.fill"
+        case "Widgets": return "chart.xyaxis.line"
+        case "Live": return "dot.radiowaves.left.and.right"
         case "Clipboard": return "doc.on.clipboard"
         case "Gemini": return "sparkles"
         case "Focus": return "timer"
@@ -529,6 +608,173 @@ struct NotchView: View {
             }
             Text("20 clips · memory only · up to 2 MB each · marked concealed content excluded. Turn off to erase history.").font(.caption2).foregroundStyle(.secondary)
         }
+    }
+    private var fileTray: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("File Tray").font(.headline)
+                    Text("Hold files from different folders here while you work.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { chooseTrayFiles() } label: { Label("Add", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent).tint(store.highlightColor)
+            }
+            if store.trayFiles.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 24)).foregroundStyle(store.highlightColor)
+                    Text(store.trayDropTargeted ? "Drop to add to your tray" : "Drop files here, or choose Add")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Files stay on this Mac. MacNotch stores their locations, not copies.").font(.caption2).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 155)
+                .background(store.highlightColor.opacity(store.trayDropTargeted ? 0.22 : 0.08), in: RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(store.highlightColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 5) {
+                        ForEach(store.trayFiles) { entry in
+                            HStack(spacing: 10) {
+                                Image(systemName: entry.isDirectory ? "folder.fill" : "doc.fill")
+                                    .font(.system(size: 16)).foregroundStyle(store.highlightColor).frame(width: 24)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                    Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Folder")
+                                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 4)
+                                Button { store.openTrayEntry(entry) } label: { Image(systemName: "arrow.up.forward.app") }
+                                    .help("Open file")
+                                Button { store.revealTrayEntry(entry) } label: { Image(systemName: "magnifyingglass") }
+                                    .help("Show in Finder")
+                                Button { store.removeTrayEntry(entry) } label: { Image(systemName: "xmark.circle.fill") }
+                                    .help("Remove from tray")
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+                            .draggable(entry.url)
+                        }
+                    }
+                }.frame(height: 155)
+            }
+            HStack(spacing: 10) {
+                Text("\(store.trayFiles.count) item\(store.trayFiles.count == 1 ? "" : "s")")
+                    .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+                Spacer()
+                Button("Create ZIP on Desktop") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
+                Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
+            }.font(.system(size: 10))
+            Text("ZIP creation reads the selected local paths and writes a new archive to your Desktop.").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+    private var widgets: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("System Widgets").font(.headline)
+                    Text("Local readings refresh about every two seconds.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(store.metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                metricCard("CPU", value: String(format: "%.0f%%", store.metrics.cpuPercent), progress: store.metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
+                metricCard("Memory", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.memoryTotal), countStyle: .memory))", progress: Double(store.metrics.memoryUsed) / Double(max(1, store.metrics.memoryTotal)), symbol: "memorychip", tint: .purple)
+            }
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Label("Network", systemImage: "wifi").font(.system(size: 10, weight: .medium)).foregroundStyle(.cyan)
+                    Label("↓ \(speed(store.metrics.downloadBytesPerSecond))", systemImage: "arrow.down")
+                    Label("↑ \(speed(store.metrics.uploadBytesPerSecond))", systemImage: "arrow.up")
+                }.font(.system(size: 12, weight: .medium, design: .rounded)).frame(maxWidth: .infinity, minHeight: 78, alignment: .leading).padding(12).modifier(GlassCard(tint: .cyan))
+                metricCard("Disk remaining", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.diskFree), countStyle: .file), progress: 1 - (Double(store.metrics.diskFree) / Double(max(1, store.metrics.diskTotal))), symbol: "internaldrive", tint: .mint)
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "memorychip.fill").foregroundStyle(.purple)
+                Text("Top RAM app").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Text(store.metrics.topProcess ?? "Sampling…").font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 2)
+                Text(store.metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
+            }.padding(.horizontal, 12).frame(height: 36).modifier(GlassCard(tint: .purple))
+            Text("CPU and memory use native macOS counters. The top app is sampled from process resident memory every 10 seconds. Network uses the primary en* adapter (typically Wi‑Fi or Ethernet). Disk free space is for your home volume.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    private var liveActivities: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Live Activities").font(.headline)
+                    Text("A live view of the tasks MacNotch currently tracks.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Circle().fill(.green).frame(width: 7, height: 7)
+                Text("LIVE").font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(.green)
+            }
+            ScrollView {
+                VStack(spacing: 7) {
+                    activityRow("Music", detail: store.playing ? "\(store.track) · \(store.artist)" : (store.musicEnabled ? "Player connected · nothing playing" : "Not connected"), symbol: "music.note", tint: .green, active: store.playing)
+                    activityRow("Focus", detail: store.focusEnd.map { _ in "\(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
+                    activityRow("File Tray", detail: store.trayFiles.isEmpty ? "Ready for files" : "\(store.trayFiles.count) file\(store.trayFiles.count == 1 ? "" : "s") waiting in your tray", symbol: "tray.full.fill", tint: store.highlightColor, active: !store.trayFiles.isEmpty)
+                    activityRow("Frontmost app", detail: store.activeApp.isEmpty ? "Unavailable" : store.activeApp, symbol: "macwindow", tint: .cyan, active: true)
+                }
+            }.frame(height: 185)
+            Text("Third-party calls, downloads, screen recordings, and system-wide activities are not yet integrated. This view only reports state MacNotch can currently observe.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    private func activityRow(_ title: String, detail: String, symbol: String, tint: Color, active: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(tint).frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 10, weight: .semibold))
+                Text(detail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Circle().fill(active ? tint : .gray.opacity(0.55)).frame(width: 6, height: 6)
+        }.padding(.horizontal, 11).padding(.vertical, 9).modifier(GlassCard(tint: tint))
+    }
+    private func metricCard(_ title: String, value: String, progress: Double, symbol: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label(title, systemImage: symbol).font(.system(size: 10, weight: .medium)).foregroundStyle(tint)
+            Text(value).font(.system(size: 14, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.75)
+            ProgressView(value: min(1, max(0, progress))).tint(tint)
+        }.frame(maxWidth: .infinity, minHeight: 78, alignment: .leading).padding(12).modifier(GlassCard(tint: tint))
+    }
+    private func speed(_ bytesPerSecond: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytesPerSecond), countStyle: .memory) + "/s"
+    }
+    private func chooseTrayFiles() {
+        let panel = NSOpenPanel()
+        panel.title = "Add files to MacNotch File Tray"
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = false
+        if panel.runModal() == .OK { store.addTrayURLs(panel.urls) }
+    }
+    private func acceptDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        let type = UTType.fileURL.identifier
+        let matching = providers.filter { $0.hasItemConformingToTypeIdentifier(type) }
+        guard !matching.isEmpty else { return false }
+        for provider in matching {
+            provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
+                let url = (item as? URL)
+                    ?? (item as? NSURL).map { $0 as URL }
+                    ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                    ?? (item as? String).flatMap(URL.init(string:))
+                guard let url, url.isFileURL else { return }
+                DispatchQueue.main.async {
+                    store.addTrayURLs([url])
+                    store.expanded = true
+                    store.pinned = true
+                    store.resize?()
+                }
+            }
+        }
+        return true
     }
     private var gemini: some View {
         VStack(alignment: .leading, spacing: 8) {

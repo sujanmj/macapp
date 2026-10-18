@@ -14,3 +14,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   shared/UtilityKit/*.swift macnotch/Sources/MacNotch/GeminiClient.swift scripts/gemini-tests.swift \
   -o "$scratch/gemini-check"
 "$scratch/gemini-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/SystemSampler.swift scripts/macnotch-sampler-tests.swift \
+  -o "$scratch/macnotch-sampler-check"
+"$scratch/macnotch-sampler-check"
