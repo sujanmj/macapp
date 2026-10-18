@@ -86,6 +86,11 @@ final class NotchStore: ObservableObject {
     @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
     @Published var metrics = MacMetrics()
     @Published var trayDropTargeted = false
+    @Published var recorder = ScreenRecorderController()
+    @Published var includeSystemAudio = UserDefaults.standard.object(forKey: "macNotchRecordSystemAudio") as? Bool ?? true
+    @Published var includeMicrophone = UserDefaults.standard.object(forKey: "macNotchRecordMicrophone") as? Bool ?? false
+    @Published var recording = false
+    @Published var recordingSeconds = 0
     private let sampler = SystemSampler()
     private var lastMetricSample = Date.distantPast
     private var hudID = UUID()
@@ -165,6 +170,8 @@ final class NotchStore: ObservableObject {
     }
     func tick() {
         ticks += 1
+        recording = recorder.isRecording
+        recordingSeconds = recorder.elapsed
         if Date().timeIntervalSince(lastMetricSample) >= 2 {
             metrics = sampler.sample()
             lastMetricSample = metrics.sampledAt
@@ -380,6 +387,14 @@ struct NotchView: View {
                 } else if store.expanded {
                     expandedContent
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                } else if store.recording {
+                    HStack(spacing: 8) {
+                        Circle().fill(.red).frame(width: 7, height: 7)
+                        Text("REC \(clock(Double(store.recordingSeconds)))").font(.system(size: 9, weight: .bold, design: .monospaced))
+                        Button { Task { await store.recorder.stop() } } label: { Image(systemName: "stop.fill").font(.system(size: 9)) }
+                            .buttonStyle(.plain).help("Stop screen recording")
+                        expandButton
+                    }.frame(height: 30).foregroundStyle(.white).accessibilityLabel("Screen recording in progress")
                 } else if store.compactMedia {
                     compactPlayer
                 } else if store.compactAI {
@@ -425,7 +440,7 @@ struct NotchView: View {
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 5) {
-                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Clipboard", "Gemini", "Focus", "Notes"], id: \.self) { item in
+                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Record", "Clipboard", "Gemini", "Focus", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
                         store.expandedHeight = item == "Home" ? 248 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" ? 360 : 340
@@ -451,6 +466,7 @@ struct NotchView: View {
                 case "Tray": fileTray
                 case "Widgets": widgets
                 case "Live": liveActivities
+                case "Record": recordingControls
                 case "Clipboard": clipboard
                 case "Gemini": gemini
                 case "Focus": focus
@@ -471,6 +487,7 @@ struct NotchView: View {
         case "Tray": return "tray.full.fill"
         case "Widgets": return "chart.xyaxis.line"
         case "Live": return "dot.radiowaves.left.and.right"
+        case "Record": return "record.circle.fill"
         case "Clipboard": return "doc.on.clipboard"
         case "Gemini": return "sparkles"
         case "Focus": return "timer"
@@ -718,12 +735,22 @@ struct NotchView: View {
                     activityRow("Music", detail: store.playing ? "\(store.track) · \(store.artist)" : (store.musicEnabled ? "Player connected · nothing playing" : "Not connected"), symbol: "music.note", tint: .green, active: store.playing)
                     activityRow("Focus", detail: store.focusEnd.map { _ in "\(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
                     activityRow("File Tray", detail: store.trayFiles.isEmpty ? "Ready for files" : "\(store.trayFiles.count) file\(store.trayFiles.count == 1 ? "" : "s") waiting in your tray", symbol: "tray.full.fill", tint: store.highlightColor, active: !store.trayFiles.isEmpty)
+                    activityRow("Screen recording", detail: store.recording ? "Recording · \(clock(Double(store.recordingSeconds)))" : "Not recording", symbol: "record.circle", tint: .red, active: store.recording)
                     activityRow("Frontmost app", detail: store.activeApp.isEmpty ? "Unavailable" : store.activeApp, symbol: "macwindow", tint: .cyan, active: true)
                 }
             }.frame(height: 185)
             Text("Third-party calls, downloads, screen recordings, and system-wide activities are not yet integrated. This view only reports state MacNotch can currently observe.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
+    }
+    private var recordingControls: some View {
+        ScreenRecordingControls(recorder: store.recorder, includeSystemAudio: Binding(
+            get: { store.includeSystemAudio },
+            set: { value in store.includeSystemAudio = value; UserDefaults.standard.set(value, forKey: "macNotchRecordSystemAudio") }
+        ), includeMicrophone: Binding(
+            get: { store.includeMicrophone },
+            set: { value in store.includeMicrophone = value; UserDefaults.standard.set(value, forKey: "macNotchRecordMicrophone") }
+        ))
     }
     private func activityRow(_ title: String, detail: String, symbol: String, tint: Color, active: Bool) -> some View {
         HStack(spacing: 10) {
@@ -831,6 +858,47 @@ struct NotchView: View {
 
 }
 
+struct ScreenRecordingControls: View {
+    @ObservedObject var recorder: ScreenRecorderController
+    @Binding var includeSystemAudio: Bool
+    @Binding var includeMicrophone: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Screen Recording").font(.headline)
+                    Text("Capture the primary display to a local movie file.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: recorder.isRecording ? "record.circle.fill" : "record.circle")
+                    .font(.system(size: 22)).foregroundStyle(recorder.isRecording ? .red : .secondary)
+            }
+            if recorder.isRecording {
+                Text(String(format: "%02d:%02d", recorder.elapsed / 60, recorder.elapsed % 60))
+                    .font(.system(size: 32, weight: .semibold, design: .rounded)).monospacedDigit()
+                Button { Task { await recorder.stop() } } label: { Label("Stop Recording", systemImage: "stop.fill") }
+                    .buttonStyle(.borderedProminent).tint(.red)
+            } else {
+                Toggle("Include system audio", isOn: $includeSystemAudio)
+                if #available(macOS 15.0, *) { Toggle("Include microphone", isOn: $includeMicrophone) }
+                Button { Task { await recorder.start(includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone) } } label: {
+                    Label("Start Recording", systemImage: "record.circle")
+                }.buttonStyle(.borderedProminent).tint(.red)
+            }
+            Text(recorder.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Open Recordings Folder") { recorder.openRecordingsFolder() }
+                if let latest = recorder.latestRecording {
+                    Button("Show Latest") { NSWorkspace.shared.activateFileViewerSelecting([latest]) }
+                }
+            }.font(.system(size: 10))
+            Text("MacNotch is excluded from the captured video. Screen recording and optional microphone capture require macOS permissions; videos stay on this Mac.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }.padding(14).modifier(GlassCard(tint: .red))
+    }
+}
+
 struct NotchSettings: View {
     @ObservedObject var store: NotchStore
     var body: some View {
@@ -846,6 +914,13 @@ struct NotchSettings: View {
                 TextField("Gemini model", text: $store.model)
                 Toggle("Volume and brightness feedback", isOn: Binding(get: { store.hardwareEnabled }, set: { store.setHardware($0) }))
                 Toggle("Hide MacNotch in full-screen apps", isOn: Binding(get: { store.hideInFullScreen }, set: { store.setHideInFullScreen($0) }))
+                Toggle("Capture system audio in screen recordings", isOn: Binding(get: { store.includeSystemAudio }, set: { value in store.includeSystemAudio = value; UserDefaults.standard.set(value, forKey: "macNotchRecordSystemAudio") }))
+                if #available(macOS 15.0, *) {
+                    Toggle("Capture microphone in screen recordings", isOn: Binding(get: { store.includeMicrophone }, set: { value in store.includeMicrophone = value; UserDefaults.standard.set(value, forKey: "macNotchRecordMicrophone") }))
+                }
+                Text("Screen recordings save to Movies/MacNotch Recordings. macOS will ask before screen or microphone capture starts.").font(.caption)
+                Button("Screen Recording Privacy Settings") { openPrivacy("Privacy_ScreenCapture") }
+                Button("Microphone Privacy Settings") { openPrivacy("Privacy_Microphone") }
                 Text("When enabled, the notch panel stays out of macOS full-screen spaces. The compact black pill remains close to the built-in camera notch size.").font(.caption)
                 Text("Volume changes show the reported level when available. Brightness keys show direction only. Hardware-key visibility depends on macOS permissions/device; Apple’s own HUD remains enabled.").font(.caption)
                 Button("Input Monitoring Settings") { openPrivacy("Privacy_ListenEvent") }

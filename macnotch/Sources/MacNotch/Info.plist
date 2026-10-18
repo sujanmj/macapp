@@ -22,6 +22,10 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Control playback and read track information from Music or Spotify only when you choose Connect.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>MacNotch records your primary display to a movie saved locally in Movies/MacNotch Recordings. Recording starts only when you press Start Recording.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MacNotch adds your microphone to a screen recording only when you enable Include microphone and start recording.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>
