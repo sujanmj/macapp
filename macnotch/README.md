@@ -1,4 +1,4 @@
-# MacNotch v0.20
+# MacNotch v0.21
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -13,7 +13,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Screen Capture & Text:** capture the entire primary display or one visible app window on demand, drag a crop in the preview, draw cyan markup on a separate image copy, and recognize visible text locally with Apple Vision. Captures save as PNGs in `Pictures/MacNotch Captures`.
 - **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows track and artist, previous/play/pause/next controls, and a seekable progress bar. The compact notch stays small.
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
-- **Clipboard:** explicitly enable in-memory session history, up to 20 clips. Copy items or combine selected text. Clear or disable to erase it; concealed, transient and generated content and common password-manager foreground apps are excluded.
+- **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
 - **Calendar & Tasks:** explicitly load upcoming events from the next seven days or incomplete reminders due in the next month. MacNotch asks for Calendar or Reminders permission only after you press the matching load button. Marking a reminder complete is a separate explicit action; data stays local.
 - **Notes, Siri, and Shortcuts:** notes save locally; Siri opens Apple's own interface rather than running inside MacNotch.
@@ -68,6 +68,10 @@ Added a Finder Services action that sends selected file references directly to M
 ## v0.20
 
 Added an image quick action that downsamples oversized images to a 2048-pixel maximum edge and writes a JPEG copy with a compression setting tuned for smaller files. A Save panel chooses the destination; originals are never overwritten. Generated-image checks verify the output dimensions, file type, and source retention.
+
+## v0.21
+
+Added clipboard search and explicit per-item pinning. Unpinned history remains opt-in and session-only. Pinned clips are saved locally without encryption, with 100-item and 8 MB limits and dedicated clear controls; no cross-device sync is included. Checks cover successful rich-content round-trip, corrupt-file handling, and size/count rejection without overwriting existing data.
 
 ## v0.11
 

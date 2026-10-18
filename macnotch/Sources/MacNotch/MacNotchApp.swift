@@ -14,14 +14,6 @@ struct PulseGlance: Decodable {
     let topBytes: UInt64?
 }
 
-struct ClipboardRecord: Identifiable {
-    let id = UUID()
-    let date = Date()
-    let title: String
-    let text: String?
-    let payload: [[String: Data]]
-}
-
 struct TrayEntry: Codable, Identifiable, Hashable {
     let id: UUID
     let path: String
@@ -45,6 +37,8 @@ struct TrayEntry: Codable, Identifiable, Hashable {
 
 @MainActor
 final class NotchStore: ObservableObject {
+    private static let pinnedClipboardURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("com.sujanmj.macnotch/PinnedClipboard.json")
     @Published var expanded = false
     @Published var cameraInset: CGFloat = 0
     @Published var compactWidth: CGFloat = 220
@@ -54,8 +48,10 @@ final class NotchStore: ObservableObject {
     @Published var highlightPreset = UserDefaults.standard.string(forKey: "macNotchHighlightPreset") ?? "Electric Blue"
     var resize: (() -> Void)?
     var applyFullScreenVisibility: ((Bool) -> Void)?
-    @Published var clips: [ClipboardRecord] = []
+    @Published var clips: [ClipboardRecord] = ClipboardPinStore.load(from: NotchStore.pinnedClipboardURL)
     @Published var selected = Set<UUID>()
+    @Published var pinnedClipIDs = Set(ClipboardPinStore.load(from: NotchStore.pinnedClipboardURL).map(\.id))
+    @Published var clipboardSearch = ""
     @Published var clipboardEnabled = false
     @Published var musicEnabled = UserDefaults.standard.bool(forKey: "mediaConnected")
     @Published var player = UserDefaults.standard.string(forKey: "mediaPlayer") ?? "Spotify"
@@ -274,7 +270,10 @@ final class NotchStore: ObservableObject {
     func setClipboard(_ enabled: Bool) {
         clipboardEnabled = enabled
         lastChange = NSPasteboard.general.changeCount
-        if !enabled { clips.removeAll(); selected.removeAll() }
+        if !enabled {
+            clips.removeAll { !pinnedClipIDs.contains($0.id) }
+            selected.formIntersection(Set(clips.map(\.id)))
+        }
     }
     func sampleClipboard() {
         let board = NSPasteboard.general
@@ -298,8 +297,47 @@ final class NotchStore: ObservableObject {
         let title = text.map { String($0.prefix(120)).replacingOccurrences(of: "\n", with: " ↵ ") }
             ?? (board.types?.contains(.fileURL) == true ? "File references" : "Image or rich content")
         clips.insert(ClipboardRecord(title: title, text: text, payload: payload), at: 0)
-        if clips.count > 20 { clips.removeLast(clips.count - 20) }
+        let sessionClips = clips.filter { !pinnedClipIDs.contains($0.id) }
+        if sessionClips.count > 20 {
+            let remove = Set(sessionClips.suffix(from: 20).map(\.id))
+            clips.removeAll { remove.contains($0.id) }
+        }
         selected.formIntersection(Set(clips.map(\.id)))
+    }
+    var visibleClipboardClips: [ClipboardRecord] {
+        guard !clipboardSearch.isEmpty else { return clips }
+        return clips.filter { $0.title.localizedCaseInsensitiveContains(clipboardSearch) || ($0.text?.localizedCaseInsensitiveContains(clipboardSearch) ?? false) }
+    }
+    func togglePinnedClip(_ clip: ClipboardRecord) {
+        var pins = clips.filter { pinnedClipIDs.contains($0.id) }
+        if pinnedClipIDs.contains(clip.id) { pins.removeAll { $0.id == clip.id } }
+        else { pins.insert(clip, at: 0) }
+        do {
+            try ClipboardPinStore.save(pins, to: Self.pinnedClipboardURL)
+            if pinnedClipIDs.contains(clip.id) {
+                pinnedClipIDs.remove(clip.id)
+                clips.removeAll { $0.id == clip.id }
+                selected.remove(clip.id)
+                message = "Clip unpinned and removed from this session."
+            } else {
+                pinnedClipIDs.insert(clip.id)
+                message = "Pinned locally on this Mac."
+            }
+        } catch { message = error.localizedDescription }
+    }
+    func clearClipboardHistory() {
+        clips.removeAll { !pinnedClipIDs.contains($0.id) }
+        selected.formIntersection(Set(clips.map(\.id)))
+        message = "Session history cleared. Pinned clips are kept."
+    }
+    func clearPinnedClips() {
+        do {
+            try ClipboardPinStore.save([], to: Self.pinnedClipboardURL)
+            clips.removeAll { pinnedClipIDs.contains($0.id) }
+            pinnedClipIDs.removeAll()
+            selected.formIntersection(Set(clips.map(\.id)))
+            message = "Pinned clips cleared from this Mac."
+        } catch { message = error.localizedDescription }
     }
     func copy(_ clip: ClipboardRecord) {
         let board = NSPasteboard.general; board.clearContents()
@@ -664,16 +702,26 @@ struct NotchView: View {
     private var clipboard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle("Capture clipboard history for this session", isOn: Binding(get: { store.clipboardEnabled }, set: { store.setClipboard($0) }))
+            TextField("Search clips", text: $store.clipboardSearch)
+                .textFieldStyle(.roundedBorder)
             List(selection: $store.selected) {
-                ForEach(store.clips) { clip in
-                    HStack { Text(clip.title).font(.caption).lineLimit(2); Spacer(); Button("Copy") { store.copy(clip) } }.tag(clip.id)
+                ForEach(store.visibleClipboardClips) { clip in
+                    HStack {
+                        Text(clip.title).font(.caption).lineLimit(2)
+                        Spacer()
+                        Button { store.togglePinnedClip(clip) } label: {
+                            Image(systemName: store.pinnedClipIDs.contains(clip.id) ? "pin.fill" : "pin")
+                        }.buttonStyle(.plain).help(store.pinnedClipIDs.contains(clip.id) ? "Unpin and remove this clip" : "Pin this clip and save it on this Mac")
+                        Button("Copy") { store.copy(clip) }
+                    }.tag(clip.id)
                 }
             }.frame(height: 120)
             HStack {
                 Button("Combine Selected Text") { store.combine() }
-                Button("Clear History") { store.clips.removeAll(); store.selected.removeAll() }
+                Button("Clear History") { store.clearClipboardHistory() }
+                Button("Clear Pins") { store.clearPinnedClips() }
             }
-            Text("20 clips · memory only · up to 2 MB each · marked concealed content excluded. Turn off to erase history.").font(.caption2).foregroundStyle(.secondary)
+            Text("Capture is opt-in and session-only (20 clips, 2 MB each). Pin saves selected clips in an unencrypted local file on this Mac (up to 100 clips / 8 MB). Clear History keeps pins; Clear Pins deletes them. Concealed clipboard items are excluded.").font(.caption2).foregroundStyle(.secondary)
         }
     }
     private var fileTray: some View {

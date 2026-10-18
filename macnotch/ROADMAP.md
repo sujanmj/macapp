@@ -13,7 +13,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Floating file tray | Partial | Separate movable shelf with drop-in, drag-out, multi-select copy; destination-aware quick actions still needed. |
 | Quick Actions | Partial | Finder add-to-tray service and smaller JPEG copy; configurable action recipes and broader file types remain. |
 | File Transform | Partial | Local ZIP creation and image downsampling to JPEG; PDF/audio/video transforms remain. |
-| Clipboard | Partial | Session memory history with privacy exclusions; persistent search, pinning, and cross-device sync still needed. |
+| Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |
 | Live Activities | Partial | MacNotch-owned music, focus, tray, recorder, and frontmost-app statuses; system and third-party feeds still needed. |
 | Floating player | Planned | Resizable desktop/menu-bar player and queue. |
 | Lock screen | Planned | Lock-screen display surfaces and media/focus cards. |
