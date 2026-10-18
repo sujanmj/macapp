@@ -904,6 +904,7 @@ struct ScreenRecordingControls: View {
 
 private struct ElementCaptureView: View {
     @ObservedObject var capture: ElementCaptureController
+    @State private var tool = CapturePreviewTool.select
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -937,12 +938,26 @@ private struct ElementCaptureView: View {
                 }
             }
             if let image = capture.image {
-                SelectableCaptureImage(image: image, selection: capture.selection, onSelection: { capture.setSelection($0) })
+                Picker("Preview tool", selection: $tool) {
+                    Text("Select area").tag(CapturePreviewTool.select)
+                    Text("Markup").tag(CapturePreviewTool.markup)
+                }.pickerStyle(.segmented).frame(maxWidth: 280)
+                SelectableCaptureImage(image: image, selection: capture.selection,
+                                       annotations: capture.annotations, tool: tool,
+                                       onSelection: { capture.setSelection($0) },
+                                       onAnnotation: { capture.addAnnotation($0) })
                     .frame(height: 112).clipShape(RoundedRectangle(cornerRadius: 9))
-                if capture.selection != nil {
+                if tool == .select, capture.selection != nil {
                     Button { Task { await capture.readSelection() } } label: {
                         Label("Save Crop & Read Text", systemImage: "text.viewfinder")
                     }.buttonStyle(.borderedProminent).tint(.cyan).disabled(capture.busy)
+                } else if tool == .markup, !capture.annotations.isEmpty {
+                    HStack {
+                        Button("Undo Markup") { capture.undoAnnotation() }
+                        Button { capture.saveAnnotatedCapture() } label: {
+                            Label("Save Marked Copy", systemImage: "pencil.tip.crop.circle")
+                        }.buttonStyle(.borderedProminent).tint(.cyan)
+                    }
                 }
             }
             if !capture.recognizedText.isEmpty {
@@ -952,19 +967,26 @@ private struct ElementCaptureView: View {
                 }.frame(maxHeight: 92).padding(8).background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
             }
             Text(capture.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Text("Capture a display or visible app window, then drag over an area to crop and read only that selection. Images save locally to Pictures/MacNotch Captures. Screen Recording permission is required. OCR runs locally with Apple Vision.")
+            Text("Capture a display or visible app window, crop an area to read it, or draw markup and save a separate copy. Images save locally to Pictures/MacNotch Captures. Screen Recording permission is required. OCR runs locally with Apple Vision.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(14).modifier(GlassCard(tint: .cyan))
             .task { await capture.refreshWindows() }
     }
 }
 
+private enum CapturePreviewTool: Hashable {
+    case select
+    case markup
+}
+
 private struct SelectableCaptureImage: View {
     let image: NSImage
     let selection: CGRect?
+    let annotations: [[CGPoint]]
+    let tool: CapturePreviewTool
     let onSelection: (CGRect?) -> Void
-    @State private var dragStart: CGPoint?
-    @State private var dragEnd: CGPoint?
+    let onAnnotation: ([CGPoint]) -> Void
+    @State private var dragPoints: [CGPoint] = []
 
     var body: some View {
         GeometryReader { proxy in
@@ -978,29 +1000,42 @@ private struct SelectableCaptureImage: View {
                 Color.black.opacity(0.3)
                 Image(nsImage: image).resizable().frame(width: render.width, height: render.height)
                     .position(x: imageRect.midX, y: imageRect.midY)
-                if let rect = selection.map({ displayRect($0, in: imageRect) }) ?? transientRect(in: imageRect) {
+                if tool == .select,
+                   let rect = selection.map({ displayRect($0, in: imageRect) }) ?? transientRect(in: imageRect) {
                     Rectangle().fill(Color.cyan.opacity(0.20))
                         .overlay(Rectangle().stroke(Color.cyan, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
                         .frame(width: rect.width, height: rect.height).position(x: rect.midX, y: rect.midY)
                         .allowsHitTesting(false)
                 }
+                Canvas { context, _ in
+                    for points in annotations + (tool == .markup && dragPoints.count > 1 ? [dragPoints.map { normalized($0, in: imageRect) }] : []) {
+                        guard let first = points.first else { continue }
+                        var path = Path()
+                        path.move(to: displayPoint(first, in: imageRect))
+                        for point in points.dropFirst() { path.addLine(to: displayPoint(point, in: imageRect)) }
+                        context.stroke(path, with: .color(.cyan), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    }
+                }.allowsHitTesting(false)
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 3).onChanged { value in
-                if dragStart == nil { dragStart = bounded(value.startLocation, to: imageRect) }
-                dragEnd = bounded(value.location, to: imageRect)
+                if dragPoints.isEmpty { dragPoints = [bounded(value.startLocation, to: imageRect)] }
+                dragPoints.append(bounded(value.location, to: imageRect))
             }.onEnded { value in
-                let start = dragStart ?? bounded(value.startLocation, to: imageRect)
-                let end = bounded(value.location, to: imageRect)
-                let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
-                                  width: abs(end.x - start.x), height: abs(end.y - start.y))
-                if rect.width >= 8, rect.height >= 8 {
-                    onSelection(CGRect(x: (rect.minX - imageRect.minX) / imageRect.width,
-                                       y: (rect.minY - imageRect.minY) / imageRect.height,
-                                       width: rect.width / imageRect.width,
-                                       height: rect.height / imageRect.height))
+                let points = dragPoints + [bounded(value.location, to: imageRect)]
+                if tool == .select, let start = points.first, let end = points.last {
+                    let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                                      width: abs(end.x - start.x), height: abs(end.y - start.y))
+                    if rect.width >= 8, rect.height >= 8 {
+                        onSelection(CGRect(x: (rect.minX - imageRect.minX) / imageRect.width,
+                                           y: (rect.minY - imageRect.minY) / imageRect.height,
+                                           width: rect.width / imageRect.width,
+                                           height: rect.height / imageRect.height))
+                    }
+                } else if tool == .markup {
+                    onAnnotation(points.map { normalized($0, in: imageRect) })
                 }
-                dragStart = nil; dragEnd = nil
+                dragPoints = []
             })
         }
         .accessibilityLabel("Screenshot preview. Drag to select an area for text recognition.")
@@ -1010,15 +1045,23 @@ private struct SelectableCaptureImage: View {
         CGPoint(x: min(max(point.x, rect.minX), rect.maxX), y: min(max(point.y, rect.minY), rect.maxY))
     }
 
+    private func normalized(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(x: (point.x - rect.minX) / rect.width, y: (point.y - rect.minY) / rect.height)
+    }
+
+    private func displayPoint(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(x: rect.minX + point.x * rect.width, y: rect.minY + point.y * rect.height)
+    }
+
     private func displayRect(_ normalized: CGRect, in rect: CGRect) -> CGRect {
         CGRect(x: rect.minX + normalized.minX * rect.width, y: rect.minY + normalized.minY * rect.height,
                width: normalized.width * rect.width, height: normalized.height * rect.height)
     }
 
     private func transientRect(in rect: CGRect) -> CGRect? {
-        guard let dragStart, let dragEnd else { return nil }
-        return CGRect(x: min(dragStart.x, dragEnd.x), y: min(dragStart.y, dragEnd.y),
-                      width: abs(dragEnd.x - dragStart.x), height: abs(dragEnd.y - dragStart.y))
+        guard let start = dragPoints.first, let end = dragPoints.last else { return nil }
+        return CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                      width: abs(end.x - start.x), height: abs(end.y - start.y))
     }
 }
 

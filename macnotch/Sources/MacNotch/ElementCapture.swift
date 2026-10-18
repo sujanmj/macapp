@@ -22,6 +22,7 @@ final class ElementCaptureController: ObservableObject {
     @Published private(set) var windows: [CaptureWindowOption] = []
     @Published var target: CaptureTarget = .display
     @Published private(set) var selection: CGRect?
+    @Published private(set) var annotations: [[CGPoint]] = []
     private var capturedImage: CGImage?
 
     func refreshWindows() async {
@@ -79,6 +80,7 @@ final class ElementCaptureController: ObservableObject {
             let url = try save(cgImage)
             capturedImage = cgImage
             selection = nil
+            annotations = []
             image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
             latestCapture = url
             message = "Screenshot saved to Pictures/MacNotch Captures. Reading visible text…"
@@ -112,6 +114,7 @@ final class ElementCaptureController: ObservableObject {
         do {
             let url = try save(cropped, prefix: "MacNotch-Selection")
             self.capturedImage = cropped
+            annotations = []
             image = NSImage(cgImage: cropped, size: NSSize(width: cropped.width, height: cropped.height))
             self.selection = nil
             latestCapture = url
@@ -119,6 +122,34 @@ final class ElementCaptureController: ObservableObject {
             message = recognizedText.isEmpty ? "Selection saved. No readable text was detected." : "Selection saved. Text recognition runs locally on this Mac."
         } catch {
             message = "Could not read this selection: \(error.localizedDescription)"
+        }
+    }
+
+    func addAnnotation(_ points: [CGPoint]) {
+        guard points.count > 1 else { return }
+        annotations.append(points)
+    }
+
+    func undoAnnotation() {
+        guard !annotations.isEmpty else { return }
+        annotations.removeLast()
+    }
+
+    func saveAnnotatedCapture() {
+        guard let capturedImage, let markedImage = CaptureMarkupRenderer.render(image: capturedImage, strokes: annotations) else {
+            message = "Draw on the screenshot before saving a marked copy."
+            return
+        }
+        do {
+            let url = try save(markedImage, prefix: "MacNotch-Marked")
+            self.capturedImage = markedImage
+            image = NSImage(cgImage: markedImage, size: NSSize(width: markedImage.width, height: markedImage.height))
+            latestCapture = url
+            annotations = []
+            selection = nil
+            message = "Marked screenshot saved to Pictures/MacNotch Captures."
+        } catch {
+            message = "Could not save the marked screenshot: \(error.localizedDescription)"
         }
     }
 
