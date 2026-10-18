@@ -9,7 +9,7 @@ xcrun swift -module-cache-path "$PWD/build/IconModuleCache" ../scripts/generate-
 xcodegen generate
 xcodebuild -project "$name.xcodeproj" -scheme "$name" -configuration Release \
   -destination 'platform=macOS' -derivedDataPath "$PWD/build" \
-  ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
+  -jobs 1 ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
 app="$PWD/build/Build/Products/Release/$name.app"
 test -d "$app"
 MACAPP_ENTITLEMENTS="$PWD/Sources/$name/$name.entitlements" bash ../scripts/sign-bundle.sh "$app"
