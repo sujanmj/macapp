@@ -21,6 +21,14 @@ struct MacNotchSamplerTests {
                      "Battery percentage should be capped and unknown times omitted")
         precondition(MacBatteryStatus.make(currentCapacity: 80, maximumCapacity: 0, isCharging: false, minutesRemaining: nil) == nil,
                      "Invalid battery capacity should not produce a status")
+        var history = SystemMetricHistory()
+        for index in 0..<35 {
+            history.append(cpuPercent: Double(index), memoryPercent: Double(index * 2), date: Date(timeIntervalSince1970: Double(index)))
+        }
+        precondition(history.points.count == 30 && history.points.first?.date == Date(timeIntervalSince1970: 5), "Trend history should retain only the newest minute of samples")
+        precondition(history.points.last?.memoryPercent == 68, "Trend history should preserve bounded memory percentages")
+        history.append(cpuPercent: .nan, memoryPercent: .infinity, limit: 30)
+        precondition(history.points.last?.cpuPercent == 0 && history.points.last?.memoryPercent == 0, "Invalid graph values should be sanitized")
         print("MacNotch sampler checks passed")
     }
 }

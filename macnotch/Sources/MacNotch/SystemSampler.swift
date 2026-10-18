@@ -27,6 +27,25 @@ struct MacBatteryStatus: Equatable {
     }
 }
 
+struct SystemMetricPoint: Identifiable, Equatable {
+    let date: Date
+    let cpuPercent: Double
+    let memoryPercent: Double
+    var id: Date { date }
+}
+
+struct SystemMetricHistory {
+    private(set) var points: [SystemMetricPoint] = []
+
+    mutating func append(cpuPercent: Double, memoryPercent: Double, date: Date = Date(), limit: Int = 30) {
+        guard limit > 0 else { points.removeAll(); return }
+        let cpu = cpuPercent.isFinite ? min(100, max(0, cpuPercent)) : 0
+        let memory = memoryPercent.isFinite ? min(100, max(0, memoryPercent)) : 0
+        points.append(SystemMetricPoint(date: date, cpuPercent: cpu, memoryPercent: memory))
+        if points.count > limit { points.removeFirst(points.count - limit) }
+    }
+}
+
 struct MacMetrics {
     var cpuPercent: Double = 0
     var memoryUsed: UInt64 = 0

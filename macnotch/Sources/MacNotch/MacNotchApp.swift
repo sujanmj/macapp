@@ -96,6 +96,8 @@ final class NotchStore: ObservableObject {
         return entries.map(\.url).filter { FileManager.default.fileExists(atPath: $0.path) }
     }
     @Published var metrics = MacMetrics()
+    @Published var metricHistory: [SystemMetricPoint] = []
+    private var metricHistoryStore = SystemMetricHistory()
     @Published var trayDropTargeted = false
     var showFloatingTray: (() -> Void)?
     var showFloatingPlayer: (() -> Void)?
@@ -193,6 +195,10 @@ final class NotchStore: ObservableObject {
         recordingSeconds = recorder.elapsed
         if Date().timeIntervalSince(lastMetricSample) >= 2 {
             metrics = sampler.sample()
+            metricHistoryStore.append(cpuPercent: metrics.cpuPercent,
+                                      memoryPercent: Double(metrics.memoryUsed) / Double(max(1, metrics.memoryTotal)),
+                                      date: metrics.sampledAt)
+            metricHistory = metricHistoryStore.points
             lastMetricSample = metrics.sampledAt
         }
         if clipboardEnabled { sampleClipboard() }
@@ -1261,6 +1267,17 @@ private struct FloatingStatsView: View {
                 Text(metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
                     .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
             }.padding(.horizontal, 9).frame(height: 29).modifier(GlassCard(tint: .purple))
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 12) {
+                    Text("Last minute").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    Text("CPU").foregroundStyle(.cyan)
+                    Text("RAM").foregroundStyle(.purple)
+                    Spacer()
+                }.font(.system(size: 8, weight: .semibold))
+                MetricTrendGraph(points: store.metricHistory)
+                    .frame(height: 32)
+                    .accessibilityLabel("CPU and memory usage history over the last minute")
+            }.padding(.horizontal, 9).padding(.vertical, 6).modifier(GlassCard(tint: .cyan))
             if let battery = metrics.battery {
                 HStack(spacing: 7) {
                     Image(systemName: battery.isCharging ? "battery.100percent.bolt" : "battery.100percent").foregroundStyle(.green)
@@ -1286,6 +1303,30 @@ private struct FloatingStatsView: View {
 
     private func speed(_ bytesPerSecond: UInt64) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: bytesPerSecond), countStyle: .memory) + "/s"
+    }
+}
+
+private struct MetricTrendGraph: View {
+    let points: [SystemMetricPoint]
+
+    var body: some View {
+        Canvas { context, size in
+            guard points.count > 1, size.width > 0, size.height > 0 else { return }
+            draw(points.map(\.cpuPercent), color: .cyan, in: &context, size: size)
+            draw(points.map(\.memoryPercent), color: .purple, in: &context, size: size)
+        }
+    }
+
+    private func draw(_ values: [Double], color: Color, in context: inout GraphicsContext, size: CGSize) {
+        guard values.count > 1 else { return }
+        var path = Path()
+        for (index, value) in values.enumerated() {
+            let x = CGFloat(index) / CGFloat(values.count - 1) * size.width
+            let y = size.height - CGFloat(min(100, max(0, value))) / 100 * size.height
+            if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
+            else { path.addLine(to: CGPoint(x: x, y: y)) }
+        }
+        context.stroke(path, with: .color(color.opacity(0.9)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
     }
 }
 
