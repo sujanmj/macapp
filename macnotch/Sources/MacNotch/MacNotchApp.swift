@@ -122,6 +122,7 @@ final class NotchStore: ObservableObject {
     @Published var pinned = false
     @Published var hideInFullScreen = UserDefaults.standard.object(forKey: "hideMacNotchInFullScreen") as? Bool ?? true
     @Published var shakeToRevealShelf = UserDefaults.standard.object(forKey: "macNotchShakeToRevealShelf") as? Bool ?? true
+    @Published var floatingTrayAutoHide = UserDefaults.standard.object(forKey: "macNotchFloatingTrayAutoHide") as? Bool ?? false
     @Published var highlightPreset = UserDefaults.standard.string(forKey: "macNotchHighlightPreset") ?? "Electric Blue"
     var resize: (() -> Void)?
     var applyFullScreenVisibility: ((Bool) -> Void)?
@@ -2834,6 +2835,8 @@ struct NotchSettings: View {
                 Toggle("Volume and brightness feedback", isOn: Binding(get: { store.hardwareEnabled }, set: { store.setHardware($0) }))
                 Toggle("Hide MacNotch in full-screen apps", isOn: Binding(get: { store.hideInFullScreen }, set: { store.setHideInFullScreen($0) }))
                 Toggle("Reveal file shelf when shaking a drag", isOn: Binding(get: { store.shakeToRevealShelf }, set: { store.setShakeToRevealShelf($0) }))
+                Toggle("Auto-hide floating file shelf after inactivity", isOn: Binding(get: { store.floatingTrayAutoHide }, set: { value in store.floatingTrayAutoHide = value; UserDefaults.standard.set(value, forKey: "macNotchFloatingTrayAutoHide") }))
+                Text("When enabled, the floating shelf closes after 20 seconds with the pointer outside it. It stays open while you are working in the shelf.").font(.caption)
                 Text("While carrying files, quickly reverse direction twice to bring the shelf beside the pointer. Drag tracking uses pointer movement only; files are read only when dropped.").font(.caption)
                 Group {
                     Text("Floating System Monitor").font(.headline)
@@ -3078,6 +3081,8 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     var displayIslands: [UInt32: FloatingWindow] = [:]
     var expandedDisplayIslands = Set<UInt32>()
     var displayObserver: NSObjectProtocol?
+    var floatingTrayAutoHideTimer: Timer?
+    var floatingTrayLastPointerInside = Date()
     var dragMonitors: [Any] = []
     var dragShakeDetector = DragShakeDetector()
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -3212,7 +3217,24 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.expanded.toggle(); store.pinned = store.expanded; position()
         window?.panel.orderFrontRegardless()
     }
-    func showFloatingTray() { floatingTray?.show() }
+    func showFloatingTray() {
+        floatingTray?.show()
+        floatingTrayLastPointerInside = Date()
+        floatingTrayAutoHideTimer?.invalidate()
+        guard store.floatingTrayAutoHide else { return }
+        floatingTrayAutoHideTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.store.floatingTrayAutoHide, let panel = self.floatingTray?.panel, panel.isVisible else { return }
+                if panel.frame.contains(NSEvent.mouseLocation) {
+                    self.floatingTrayLastPointerInside = Date()
+                } else if Date().timeIntervalSince(self.floatingTrayLastPointerInside) >= 20 {
+                    panel.orderOut(nil)
+                    self.floatingTrayAutoHideTimer?.invalidate()
+                    self.floatingTrayAutoHideTimer = nil
+                }
+            }
+        }
+    }
     func showFloatingPlayer() { floatingPlayer?.show() }
     func showFloatingStats() { floatingStats?.show() }
     func showTeleprompter() { teleprompterWindow?.show() }

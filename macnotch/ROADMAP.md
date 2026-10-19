@@ -10,7 +10,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | --- | --- | --- |
 | Dynamic notch and island | Partial | Compact black notch, glass panel, saved accent colors, fullscreen preference, and external-display islands with live CPU/RAM/network cards; configurable per-display widgets and layouts remain. |
 | File tray | Partial | Persistent path list, file picker/drop, search by file or parent folder, visible-result selection, Quick Look thumbnails and full in-app preview, drag-out, open/reveal/remove, ZIP, collision-safe copy to chosen/recent folders; destination-aware transient shelf and quick actions still needed. |
-| Floating file tray | Partial | Separate shelf with drop-in, drag-out, multi-select copy, Quick Look preview, visible selection count, and pointer shake-to-reveal; auto-hide, multiple trays, and destination-aware quick actions remain. |
+| Floating file tray | Partial | Separate shelf with drop-in, drag-out, multi-select copy, Quick Look preview, visible selection count, pointer shake-to-reveal, and optional 20-second pointer-away auto-hide; multiple trays and destination-aware quick actions remain. |
 | Quick Actions | Partial | Finder add-to-tray service, batch smaller JPEG and PNG copies, selected/all multi-file sharing, recent copy destinations, and PDF merging; configurable action recipes and broader file types remain. |
 | File Transform | Partial | Local ZIP creation, batch image downsampling to collision-safe JPEG copies, full-resolution PNG conversion with GPS metadata removal, ordered multi-image-to-PDF creation, multi-PDF merge, batch medium-quality MOV/MP4/M4V-to-MP4 copies, 10-fps animated GIFs from up to 15 seconds of video, shared-range video trimming, and WAV/AIFF/AIF/CAF-to-M4A conversion; broader audio format support remains. |
 | Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |
@@ -76,5 +76,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 3. **Media and activities:** queue/lyrics/floating player, activity arbitration, battery/network/device/notification activity sources.
 4. **Productivity and file actions:** calendar/tasks, launcher/action ring, conversion/compression, Finder actions, teleprompter, and local send.
 5. **Integrations and polish:** AI agents/MCP, Obsidian/Things/Kaset, window management, and optional iPhone sync.
+
+v0.66 adds an optional idle auto-hide for the floating tray; the timer resets while the pointer is over the shelf.
 
 Every increment still needs a macOS build, meaningful checks, permission/device testing for the APIs involved, an updated tracker, and a verified GitHub installer before it is called ready.
