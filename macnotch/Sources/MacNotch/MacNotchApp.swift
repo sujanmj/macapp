@@ -457,6 +457,68 @@ final class NotchStore: ObservableObject {
             }
         }
     }
+    func trimTrayVideos() {
+        let sources = trayVideoURLs
+        guard !sources.isEmpty else { message = "Select existing MOV, MP4, or M4V videos in the tray first."; return }
+
+        let startField = NSTextField(string: "0")
+        startField.placeholderString = "0"
+        startField.widthAnchor.constraint(equalToConstant: 100).isActive = true
+        let endField = NSTextField(string: "")
+        endField.placeholderString = "End of video"
+        endField.widthAnchor.constraint(equalToConstant: 100).isActive = true
+        let startRow = NSStackView(views: [NSTextField(labelWithString: "Start (seconds)"), startField])
+        startRow.orientation = .horizontal
+        startRow.spacing = 10
+        let endRow = NSStackView(views: [NSTextField(labelWithString: "End (seconds)"), endField])
+        endRow.orientation = .horizontal
+        endRow.spacing = 10
+        let accessory = NSStackView(views: [startRow, endRow])
+        accessory.orientation = .vertical
+        accessory.alignment = .leading
+        accessory.spacing = 8
+        accessory.frame = NSRect(x: 0, y: 0, width: 300, height: 56)
+
+        let alert = NSAlert()
+        alert.messageText = "Trim a Video Copy"
+        alert.informativeText = "Times are seconds from the start. Leave End blank to use each video's full duration."
+        alert.accessoryView = accessory
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = startField
+        guard alert.runModal() == .alertFirstButtonReturn else { message = "Video trimming canceled."; return }
+
+        let rawEnd = endField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let start = Double(startField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+              rawEnd.isEmpty || Double(rawEnd) != nil else {
+            message = "Enter trim times as seconds, such as 2.5."
+            return
+        }
+        let end = rawEnd.isEmpty ? nil : Double(rawEnd)
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Folder for Trimmed Video Copies"
+        panel.prompt = "Save Copies"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let directory = panel.url else { message = "Video trimming canceled."; return }
+
+        message = "Trimming \(sources.count) video\(sources.count == 1 ? "" : "s")… Originals remain unchanged."
+        Task.detached(priority: .userInitiated) { [store = self, sources, directory] in
+            let result = await VideoFileActions.trimVideos(sources, startSeconds: start, endSeconds: end, into: directory)
+            await MainActor.run {
+                if result.outputs.isEmpty {
+                    store.message = "No trimmed videos were created. " + (result.failures.first?.1 ?? "Check the selected files.")
+                } else if result.failures.isEmpty {
+                    store.message = "Created \(result.outputs.count) trimmed MP4 copies. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                } else {
+                    store.message = "Created \(result.outputs.count) trimmed copies; \(result.failures.count) video(s) could not be trimmed. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                }
+            }
+        }
+    }
     func convertTrayAudioToM4A() {
         let sources = trayConvertibleAudioURLs
         guard !sources.isEmpty else { message = "Select existing WAV, AIFF, AIF, or CAF audio in the tray first."; return }
@@ -1385,8 +1447,9 @@ struct NotchView: View {
                 Menu {
                     Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
                     Button("Create Animated GIF Copies…") { store.createGIFCopiesFromTrayVideos() }
+                    Button("Trim Range to MP4 Copy…") { store.trimTrayVideos() }
                 } label: { Label("Video", systemImage: "film") }
-                    .help("Create smaller MP4 copies or animated GIFs from selected videos, or all tray videos")
+                    .help("Create smaller MP4 copies, animated GIFs, or trimmed MP4 copies from selected videos, or all tray videos")
                     .disabled(store.trayVideoURLs.isEmpty)
                 Menu {
                     Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }
@@ -2113,8 +2176,9 @@ private struct FloatingTrayView: View {
                 Menu {
                     Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
                     Button("Create Animated GIF Copies…") { store.createGIFCopiesFromTrayVideos() }
+                    Button("Trim Range to MP4 Copy…") { store.trimTrayVideos() }
                 } label: { Label("Video", systemImage: "film") }
-                    .help("Create smaller MP4 copies or animated GIFs from selected videos, or all tray videos")
+                    .help("Create smaller MP4 copies, animated GIFs, or trimmed MP4 copies from selected videos, or all tray videos")
                     .disabled(store.trayVideoURLs.isEmpty)
                 Menu {
                     Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }

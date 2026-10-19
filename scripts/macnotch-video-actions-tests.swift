@@ -34,15 +34,26 @@ struct MacNotchVideoActionsTests {
               try Data(contentsOf: firstGIF) == Data("existing GIF".utf8) else {
             fatalError("GIF destination selection must avoid overwriting existing files")
         }
+        let firstTrim = VideoFileActions.trimmedDestination(for: movie, in: folder)
+        guard firstTrim.lastPathComponent == "demo-trimmed.mp4" else { fatalError("Unexpected first trimmed output name") }
+        try Data("existing trimmed video".utf8).write(to: firstTrim)
+        let secondTrim = VideoFileActions.trimmedDestination(for: movie, in: folder)
+        guard secondTrim.lastPathComponent == "demo-trimmed-2.mp4",
+              try Data(contentsOf: firstTrim) == Data("existing trimmed video".utf8) else {
+            fatalError("Trim destination selection must avoid overwriting existing files")
+        }
 
         let unsupported = folder.appendingPathComponent("notes.txt")
         try Data("not a movie".utf8).write(to: unsupported)
         let invalid = await VideoFileActions.compress([unsupported, unsupported], into: folder)
         let invalidGIF = await VideoFileActions.createGIFs([unsupported, unsupported], into: folder)
+        let invalidTrim = await VideoFileActions.trimVideos([unsupported, unsupported], startSeconds: 0, into: folder)
         guard invalid.outputs.isEmpty, invalid.failures.count == 1,
               invalidGIF.outputs.isEmpty, invalidGIF.failures.count == 1,
+              invalidTrim.outputs.isEmpty, invalidTrim.failures.count == 1,
               try Data(contentsOf: first) == Data("existing output".utf8),
               try Data(contentsOf: firstGIF) == Data("existing GIF".utf8),
+              try Data(contentsOf: firstTrim) == Data("existing trimmed video".utf8),
               FileManager.default.fileExists(atPath: unsupported.path) else {
             fatalError("Invalid/duplicate videos should be reported once without changing sources or existing output")
         }
@@ -57,6 +68,25 @@ struct MacNotchVideoActionsTests {
               CGImageSourceGetCount(gifSource) >= 8,
               try Data(contentsOf: firstGIF) == Data("existing GIF".utf8) else {
             fatalError("Video-to-GIF conversion should produce one animated, collision-safe copy while preserving the source")
+        }
+        let trimmed = await VideoFileActions.trimVideos([movie, movie], startSeconds: 0.2, endSeconds: 0.8, into: folder)
+        guard trimmed.outputs.count == 1, trimmed.failures.isEmpty,
+              FileManager.default.fileExists(atPath: movie.path),
+              let trimmedOutput = trimmed.outputs.first,
+              trimmedOutput.lastPathComponent == "demo-trimmed-2.mp4",
+              try Data(contentsOf: firstTrim) == Data("existing trimmed video".utf8),
+              try await AVURLAsset(url: trimmedOutput).load(.isPlayable) else {
+            fatalError("Trimming should create one playable collision-safe copy, deduplicate input, and preserve the source")
+        }
+        let trimmedAssetDuration = try await AVURLAsset(url: trimmedOutput).load(.duration)
+        let trimmedDuration = trimmedAssetDuration.seconds
+        guard trimmedDuration > 0.45, trimmedDuration <= 0.65 else {
+            fatalError("The exported video should contain the requested time range")
+        }
+        let invalidRange = await VideoFileActions.trimVideos([movie, movie], startSeconds: 0.9, endSeconds: 0.1, into: folder)
+        guard invalidRange.outputs.isEmpty, invalidRange.failures.count == 1,
+              FileManager.default.fileExists(atPath: movie.path) else {
+            fatalError("Invalid trim ranges should be rejected once without changing the source")
         }
         let compressed = await VideoFileActions.compress([movie, movie], into: folder)
         guard compressed.outputs.count == 1, compressed.failures.isEmpty,

@@ -18,6 +18,11 @@ struct VideoGIFResult {
     let failures: [(URL, String)]
 }
 
+struct VideoTrimResult {
+    let outputs: [URL]
+    let failures: [(URL, String)]
+}
+
 enum VideoFileActions {
     static let supportedExtensions: Set<String> = ["mov", "mp4", "m4v"]
 
@@ -33,6 +38,11 @@ enum VideoFileActions {
     static func gifDestination(for source: URL, in folder: URL, fileManager: FileManager = .default) -> URL {
         let stem = source.deletingPathExtension().lastPathComponent + "-animated"
         return availableURL(stem: stem, extension: "gif", in: folder, fileManager: fileManager)
+    }
+
+    static func trimmedDestination(for source: URL, in folder: URL, fileManager: FileManager = .default) -> URL {
+        let stem = source.deletingPathExtension().lastPathComponent + "-trimmed"
+        return availableURL(stem: stem, extension: "mp4", in: folder, fileManager: fileManager)
     }
 
     static func compress(_ sources: [URL], into folder: URL, fileManager: FileManager = .default) async -> VideoCompressionResult {
@@ -97,6 +107,36 @@ enum VideoFileActions {
         return VideoGIFResult(outputs: outputs, failures: failures)
     }
 
+    static func trimVideos(
+        _ sources: [URL],
+        startSeconds: Double,
+        endSeconds: Double? = nil,
+        into folder: URL,
+        fileManager: FileManager = .default
+    ) async -> VideoTrimResult {
+        var outputs: [URL] = []
+        var failures: [(URL, String)] = []
+        let uniqueSources = sources.map(\.standardizedFileURL).reduce(into: [URL]()) { result, source in
+            if !result.contains(source) { result.append(source) }
+        }
+
+        for source in uniqueSources {
+            guard isSupportedVideo(source), fileManager.fileExists(atPath: source.path) else {
+                failures.append((source, "Unsupported video type or source file is missing."))
+                continue
+            }
+            let destination = trimmedDestination(for: source, in: folder, fileManager: fileManager)
+            do {
+                try await trimOne(source, to: destination, startSeconds: startSeconds, endSeconds: endSeconds)
+                outputs.append(destination)
+            } catch {
+                try? fileManager.removeItem(at: destination)
+                failures.append((source, error.localizedDescription))
+            }
+        }
+        return VideoTrimResult(outputs: outputs, failures: failures)
+    }
+
     private static func createGIFOne(
         _ source: URL,
         to destination: URL,
@@ -146,6 +186,39 @@ enum VideoFileActions {
               let imageSource = CGImageSourceCreateWithURL(destination as CFURL, nil),
               CGImageSourceGetCount(imageSource) > 0 else {
             throw VideoGIFError.exportFailed
+        }
+    }
+
+    private static func trimOne(_ source: URL, to destination: URL, startSeconds: Double, endSeconds: Double?) async throws {
+        guard startSeconds.isFinite, startSeconds >= 0,
+              endSeconds.map({ $0.isFinite && $0 > startSeconds }) ?? true else {
+            throw VideoTrimError.invalidRange
+        }
+        let asset = AVURLAsset(url: source)
+        guard try await asset.load(.isPlayable) else { throw VideoTrimError.unreadable }
+        let assetDuration = try await asset.load(.duration)
+        let duration = assetDuration.seconds
+        let end = endSeconds ?? duration
+        guard duration.isFinite, duration > 0, startSeconds < end, end <= duration else {
+            throw VideoTrimError.rangeOutsideVideo
+        }
+        guard let exporter = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetMediumQuality) else {
+            throw VideoTrimError.exportUnavailable
+        }
+        guard exporter.supportedFileTypes.contains(.mp4) else { throw VideoTrimError.mp4Unavailable }
+        exporter.timeRange = CMTimeRange(
+            start: CMTime(seconds: startSeconds, preferredTimescale: 600),
+            duration: CMTime(seconds: end - startSeconds, preferredTimescale: 600)
+        )
+        if #available(macOS 15.0, *) {
+            try await exporter.export(to: destination, as: .mp4)
+        } else {
+            try await exportForMacOS14(exporter, to: destination)
+        }
+        guard let outputSize = try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              outputSize > 0,
+              try await AVURLAsset(url: destination).load(.isPlayable) else {
+            throw VideoTrimError.exportFailed
         }
     }
 
@@ -246,6 +319,26 @@ private enum VideoGIFError: LocalizedError {
         case .invalidDuration: "This video has no usable duration."
         case .exportUnavailable: "macOS could not prepare an animated GIF."
         case .exportFailed: "The animated GIF could not be written."
+        }
+    }
+}
+
+private enum VideoTrimError: LocalizedError {
+    case invalidRange
+    case rangeOutsideVideo
+    case unreadable
+    case exportUnavailable
+    case mp4Unavailable
+    case exportFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidRange: "Enter a start time of zero or more, with an end time after the start."
+        case .rangeOutsideVideo: "The trim range extends beyond this video's duration."
+        case .unreadable: "macOS could not read this video."
+        case .exportUnavailable: "macOS could not prepare the video trimmer."
+        case .mp4Unavailable: "This video cannot be exported as MP4 on this Mac."
+        case .exportFailed: "The trimmed MP4 copy could not be created or played."
         }
     }
 }
