@@ -1,4 +1,4 @@
-# MacNotch v0.64
+# MacNotch v0.65
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -24,6 +24,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
 - **Teleprompter:** save a local script, open a floating always-on-top reader, adjust scroll speed and text size, pause/resume/reset, and mirror the text for a beam-splitter setup. Control–Option–P opens the reader. Scrolling is local and requires no account or network access.
+- **Action Ring:** press **Control–Option–R** to open a compact radial launcher near the pointer. Shortcuts open File Tray, Music, Widgets, Recording, Focus, Gemini, Notes, or Settings; MacNotch dismisses the ring before showing the selected tool.
 - **Calendar & Tasks:** explicitly load upcoming events from the next seven days or incomplete reminders due in the next month. Create an event in your default Calendar with a chosen start and duration, or create a reminder in your default Reminders list with an optional due date. MacNotch asks for Calendar or Reminders permission only when you load or save, and marking a reminder complete is a separate explicit action. Data stays local.
 - **Notes, Siri, and Shortcuts:** notes save locally; Siri opens Apple's own interface rather than running inside MacNotch.
 - **Hardware feedback:** optional volume and brightness-key indications. macOS exposes brightness direction rather than a dependable percentage on supported Macs.
@@ -157,6 +158,10 @@ Added a batch action that combines selected tray images, in their visible tray o
 ## v0.64
 
 Added a native macOS WidgetKit desktop widget in small, medium, and large sizes. It displays timestamped RAM, CPU, hardware network, disk-free, and top-app readings from a private local snapshot. MacNotch writes snapshots while open and requests refreshes at bounded intervals; WidgetKit controls when the widget actually refreshes and labels stale data. The extension is sandboxed and has read-only access to only its snapshot folder. Checks cover schema, size, timestamp, value validation, and private file permissions.
+
+## v0.65
+
+Added the Action Ring, a radial quick launcher opened with Control–Option–R. It appears near the pointer, adapts its position to the active display, and opens MacNotch tools or Settings with one click. This first pass covers eight built-in actions; configurable actions, extension discovery, and the broader Droplet catalog are still in progress.
 
 ## v0.57
 

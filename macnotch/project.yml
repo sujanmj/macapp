@@ -18,8 +18,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macnotch
-        MARKETING_VERSION: '0.64.0'
-        CURRENT_PROJECT_VERSION: '62'
+        MARKETING_VERSION: '0.65.0'
+        CURRENT_PROJECT_VERSION: '63'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacNotch/Info.plist
@@ -38,8 +38,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macnotch.widget
-        MARKETING_VERSION: '0.64.0'
-        CURRENT_PROJECT_VERSION: '62'
+        MARKETING_VERSION: '0.65.0'
+        CURRENT_PROJECT_VERSION: '63'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacNotchWidget/Info.plist

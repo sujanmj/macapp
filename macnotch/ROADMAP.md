@@ -36,7 +36,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Thunderstorm launcher | Planned |
 | Productivity | Obsidian | Planned |
 | Productivity | Weather | Planned |
-| Productivity | Action Ring | Planned |
+| Productivity | Action Ring | Partial — pointer-positioned radial launcher for tray, music, widgets, recording, focus, Gemini, notes, and settings; configurable actions and extension catalog remain |
 | Productivity | DropClip | Planned |
 | Productivity | Xcode Builds | Planned |
 | Productivity | Things 3 | Planned |

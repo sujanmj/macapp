@@ -224,11 +224,14 @@ final class NotchStore: ObservableObject {
     private var metricHistoryStore = SystemMetricHistory()
     @Published var visibleMonitorWidgets = SystemMonitorWidget.restoring(UserDefaults.standard.stringArray(forKey: "macNotchVisibleMonitorWidgets"))
     @Published var trayDropTargeted = false
+    @Published var requestedTab: String?
     var showFloatingTray: (() -> Void)?
     var showFloatingPlayer: (() -> Void)?
     var showFloatingStats: (() -> Void)?
     var showTeleprompter: (() -> Void)?
     var showMainNotch: (() -> Void)?
+    var showActionRing: (() -> Void)?
+    var showSettings: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
     let calendarEventsController = CalendarEventsController()
     let calendarTasksController = CalendarTasksController()
@@ -1140,6 +1143,13 @@ struct NotchView: View {
             }
             .padding(12)
             .frame(minWidth: 520, minHeight: 420)
+        }
+        .onChange(of: store.requestedTab) { _, requested in
+            guard let requested else { return }
+            tab = requested
+            store.expandedHeight = requested == "Home" ? 280 : requested == "Music" ? 260 : requested == "Tray" || requested == "Widgets" || requested == "Capture" ? 360 : requested == "Events" ? 330 : requested == "Prompt" ? 390 : requested == "Launch" || requested == "Audio" ? 360 : 340
+            store.resize?()
+            store.requestedTab = nil
         }
     }
     private var expandedContent: some View {
@@ -3057,12 +3067,14 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     let floatingStatsShortcut = GlobalShortcut()
     let teleprompterShortcut = GlobalShortcut()
     let emojiShortcut = GlobalShortcut()
+    let actionRingShortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
     var floatingPlayer: FloatingWindow?
     var floatingStats: FloatingWindow?
     var teleprompterWindow: FloatingWindow?
+    var actionRingWindow: FloatingWindow?
     var displayIslands: [UInt32: FloatingWindow] = [:]
     var expandedDisplayIslands = Set<UInt32>()
     var displayObserver: NSObjectProtocol?
@@ -3089,6 +3101,21 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingPlayer = FloatingWindow(title: "MacNotch Player", size: NSSize(width: 460, height: 260), content: FloatingPlayerView(store: store))
         floatingStats = FloatingWindow(title: "MacNotch System Monitor", size: NSSize(width: 370, height: 230), content: FloatingStatsView(store: store))
         teleprompterWindow = FloatingWindow(title: "MacNotch Teleprompter", size: NSSize(width: 760, height: 540), content: TeleprompterView(store: store))
+        let ringActions = [
+            ActionRingAction(id: "tray", title: "File Tray", symbol: "tray.full.fill", tint: .cyan) { [weak self] in self?.showFloatingTray() },
+            ActionRingAction(id: "music", title: "Music", symbol: "music.note", tint: .green) { [weak self] in self?.selectTab("Music") },
+            ActionRingAction(id: "widgets", title: "Widgets", symbol: "chart.bar.fill", tint: .orange) { [weak self] in self?.selectTab("Widgets") },
+            ActionRingAction(id: "record", title: "Record", symbol: "record.circle.fill", tint: .red) { [weak self] in self?.selectTab("Record") },
+            ActionRingAction(id: "focus", title: "Focus", symbol: "timer", tint: .purple) { [weak self] in self?.selectTab("Focus") },
+            ActionRingAction(id: "gemini", title: "Gemini", symbol: "sparkles", tint: .blue) { [weak self] in self?.selectTab("Gemini") },
+            ActionRingAction(id: "notes", title: "Notes", symbol: "note.text", tint: .yellow) { [weak self] in self?.selectTab("Notes") },
+            ActionRingAction(id: "settings", title: "Settings", symbol: "gearshape.fill", tint: .gray) { [weak self] in self?.settings?.show() }
+        ]
+        actionRingWindow = FloatingWindow(title: "MacNotch Action Ring", size: NSSize(width: 360, height: 360), content: ActionRingView(actions: ringActions) { [weak self] in self?.actionRingWindow?.hide() })
+        actionRingWindow?.panel.styleMask = [.borderless, .nonactivatingPanel]
+        actionRingWindow?.panel.isOpaque = false
+        actionRingWindow?.panel.backgroundColor = .clear
+        actionRingWindow?.panel.hasShadow = false
         _ = floatingTray?.panel.setFrameAutosaveName("MacNotchFloatingFileShelf")
         _ = floatingPlayer?.panel.setFrameAutosaveName("MacNotchFloatingPlayer")
         _ = floatingStats?.panel.setFrameAutosaveName("MacNotchFloatingSystemMonitor")
@@ -3098,6 +3125,8 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.showFloatingStats = { [weak self] in self?.showFloatingStats() }
         store.showTeleprompter = { [weak self] in self?.showTeleprompter() }
         store.showMainNotch = { [weak self] in self?.showMainNotch() }
+        store.showActionRing = { [weak self] in self?.showActionRing() }
+        store.showSettings = { [weak self] in self?.settings?.show() }
         if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
             let point = NSEvent.mouseLocation
             Task { @MainActor in self?.handleFileDrag(at: point) }
@@ -3128,6 +3157,10 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         emojiShortcut.action = { NSApp.orderFrontCharacterPalette(nil) }
         if !emojiShortcut.register(key: UInt32(kVK_ANSI_E), modifiers: UInt32(controlKey | optionKey)) {
             store.message = "Emoji shortcut unavailable; use the Home panel."
+        }
+        actionRingShortcut.action = { [weak self] in self?.showActionRing() }
+        if !actionRingShortcut.register(key: UInt32(kVK_ANSI_R), modifiers: UInt32(controlKey | optionKey)) {
+            store.message = "Action Ring shortcut unavailable; use the menu bar."
         }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
@@ -3188,6 +3221,11 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         store.pinned = true
         position()
         window?.panel.orderFrontRegardless()
+    }
+    func showActionRing() { actionRingWindow?.show(near: NSEvent.mouseLocation) }
+    private func selectTab(_ tab: String) {
+        store.requestedTab = tab
+        showMainNotch()
     }
     private func screenID(_ screen: NSScreen) -> UInt32? {
         (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
@@ -3274,6 +3312,7 @@ struct MacNotchApp: App {
             Button("Floating Player   ⌃⌥M") { delegate.showFloatingPlayer() }
             Button("System Monitor   ⌃⌥W") { delegate.showFloatingStats() }
             Button("Teleprompter   ⌃⌥P") { delegate.showTeleprompter() }
+            Button("Action Ring   ⌃⌥R") { delegate.showActionRing() }
             Button("Settings") { delegate.settings?.show() }
             Divider(); Button("Quit MacNotch") { NSApp.terminate(nil) }
         }
