@@ -3224,7 +3224,12 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         guard store.floatingTrayAutoHide else { return }
         floatingTrayAutoHideTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.store.floatingTrayAutoHide, let panel = self.floatingTray?.panel, panel.isVisible else { return }
+                guard let self else { return }
+                guard self.store.floatingTrayAutoHide, let panel = self.floatingTray?.panel, panel.isVisible else {
+                    self.floatingTrayAutoHideTimer?.invalidate()
+                    self.floatingTrayAutoHideTimer = nil
+                    return
+                }
                 if panel.frame.contains(NSEvent.mouseLocation) {
                     self.floatingTrayLastPointerInside = Date()
                 } else if Date().timeIntervalSince(self.floatingTrayLastPointerInside) >= 20 {
