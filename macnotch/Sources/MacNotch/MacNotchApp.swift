@@ -388,24 +388,33 @@ final class NotchStore: ObservableObject {
         }
     }
     func createSmallerJPEGCopies() {
+        exportTrayImages(asPNG: false)
+    }
+    func createPNGCopies() {
+        exportTrayImages(asPNG: true)
+    }
+    private func exportTrayImages(asPNG: Bool) {
         let sources = trayImageURLs
         guard !sources.isEmpty else { message = "Select image files in the tray first."; return }
         let panel = NSOpenPanel()
-        panel.title = "Choose a Folder for Smaller JPEG Copies"
+        panel.title = asPNG ? "Choose a Folder for PNG Copies" : "Choose a Folder for Smaller JPEG Copies"
         panel.prompt = "Save Copies"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let directory = panel.url else { message = "Image export canceled."; return }
-        message = "Creating smaller JPEG copies for \(sources.count) image\(sources.count == 1 ? "" : "s")…"
-        Task.detached(priority: .userInitiated) { [store = self, sources, directory] in
+        let formatName = asPNG ? "PNG" : "smaller JPEG"
+        message = "Creating \(formatName) copies for \(sources.count) image\(sources.count == 1 ? "" : "s")…"
+        Task.detached(priority: .userInitiated) { [store = self, sources, directory, asPNG] in
             do {
-                let result = try ImageFileActions.createSmallerJPEGs(from: sources, in: directory)
+                let result = try asPNG
+                    ? ImageFileActions.createPNGCopies(from: sources, in: directory)
+                    : ImageFileActions.createSmallerJPEGs(from: sources, in: directory)
                 await MainActor.run {
                     if result.outputs.isEmpty {
-                        store.message = "No JPEG copies were created. " + (result.failures.first ?? "Check the selected image files.")
+                        store.message = "No \(formatName) copies were created. " + (result.failures.first ?? "Check the selected image files.")
                     } else if result.failures.isEmpty {
-                        store.message = "Created \(result.outputs.count) smaller JPEG copies. The originals are unchanged."
+                        store.message = "Created \(result.outputs.count) \(formatName) copies. The originals are unchanged."
                         NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
                     } else {
                         store.message = "Created \(result.outputs.count) copies; skipped \(result.failures.count). \(result.failures[0])"
@@ -1277,8 +1286,11 @@ struct NotchView: View {
                 Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
                     .help("Merge selected PDFs, or all tray PDFs, into a new PDF")
                     .disabled(store.trayPDFCount < 2)
-                Button { store.createSmallerJPEGCopies() } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
-                    .help("Create smaller JPEG copies of selected images, or all tray images")
+                Menu {
+                    Button("Create Smaller JPEG Copies") { store.createSmallerJPEGCopies() }
+                    Button("Convert to PNG Copies") { store.createPNGCopies() }
+                } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
+                    .help("Compress images or make PNG copies of selected images, or all tray images")
                     .disabled(store.trayImageURLs.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
@@ -1975,8 +1987,11 @@ private struct FloatingTrayView: View {
                 Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
                     .help("Merge selected PDFs, or all tray PDFs, into a new PDF")
                     .disabled(store.trayPDFCount < 2)
-                Button { store.createSmallerJPEGCopies() } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
-                    .help("Create smaller JPEG copies of selected images, or all tray images")
+                Menu {
+                    Button("Create Smaller JPEG Copies") { store.createSmallerJPEGCopies() }
+                    Button("Convert to PNG Copies") { store.createPNGCopies() }
+                } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
+                    .help("Compress images or make PNG copies of selected images, or all tray images")
                     .disabled(store.trayImageURLs.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)

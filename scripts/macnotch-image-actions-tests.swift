@@ -72,6 +72,26 @@ struct MacNotchImageActionTests {
             fatalError("Batch conversion should skip unsupported files, deduplicate sources, avoid collisions, and preserve all originals")
         }
 
+        let existingPNG = batchFolder.appendingPathComponent("original-png.png")
+        try Data("keep this PNG destination".utf8).write(to: existingPNG)
+        let pngBatch = try ImageFileActions.createPNGCopies(
+            from: [original, duplicateNameSource, original],
+            in: batchFolder
+        )
+        guard pngBatch.outputs.count == 2,
+              pngBatch.failures.isEmpty,
+              pngBatch.outputs.map(\.lastPathComponent) == ["original-png 2.png", "original-png 3.png"],
+              (try Data(contentsOf: existingPNG)) == Data("keep this PNG destination".utf8),
+              let pngSource = CGImageSourceCreateWithURL(pngBatch.outputs[0] as CFURL, nil),
+              let pngProperties = CGImageSourceCopyPropertiesAtIndex(pngSource, 0, nil) as? [CFString: Any],
+              CGImageSourceGetType(pngSource) == UTType.png.identifier as CFString,
+              (pngProperties[kCGImagePropertyPixelWidth] as? Int) == width,
+              (pngProperties[kCGImagePropertyPixelHeight] as? Int) == height,
+              FileManager.default.fileExists(atPath: original.path),
+              FileManager.default.fileExists(atPath: duplicateNameSource.path) else {
+            fatalError("PNG batch conversion should preserve dimensions and originals while safely numbering output collisions")
+        }
+
         print("MacNotch image action checks passed")
     }
 }
