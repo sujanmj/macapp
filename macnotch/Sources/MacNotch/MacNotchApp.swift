@@ -123,6 +123,7 @@ final class NotchStore: ObservableObject {
     @Published var hideInFullScreen = UserDefaults.standard.object(forKey: "hideMacNotchInFullScreen") as? Bool ?? true
     @Published var shakeToRevealShelf = UserDefaults.standard.object(forKey: "macNotchShakeToRevealShelf") as? Bool ?? true
     @Published var floatingTrayAutoHide = UserDefaults.standard.object(forKey: "macNotchFloatingTrayAutoHide") as? Bool ?? false
+    @Published var actionRingActionIDs = UserDefaults.standard.stringArray(forKey: "macNotchActionRingActions") ?? ActionRingOption.all.map(\.id)
     @Published var highlightPreset = UserDefaults.standard.string(forKey: "macNotchHighlightPreset") ?? "Electric Blue"
     var resize: (() -> Void)?
     var applyFullScreenVisibility: ((Bool) -> Void)?
@@ -271,6 +272,18 @@ final class NotchStore: ObservableObject {
     func setShakeToRevealShelf(_ enabled: Bool) {
         shakeToRevealShelf = enabled
         UserDefaults.standard.set(enabled, forKey: "macNotchShakeToRevealShelf")
+    }
+
+    func setActionRingAction(_ id: String, enabled: Bool) {
+        var selected = actionRingActionIDs
+        if enabled, !selected.contains(id) {
+            selected.append(id)
+        } else if !enabled {
+            selected.removeAll { $0 == id }
+        }
+        guard !selected.isEmpty else { return }
+        actionRingActionIDs = selected
+        UserDefaults.standard.set(selected, forKey: "macNotchActionRingActions")
     }
     func setMonitorWidget(_ widget: SystemMonitorWidget, visible: Bool) {
         if visible { visibleMonitorWidgets.insert(widget) }
@@ -2837,6 +2850,16 @@ struct NotchSettings: View {
                 Toggle("Reveal file shelf when shaking a drag", isOn: Binding(get: { store.shakeToRevealShelf }, set: { store.setShakeToRevealShelf($0) }))
                 Toggle("Auto-hide floating file shelf after inactivity", isOn: Binding(get: { store.floatingTrayAutoHide }, set: { value in store.floatingTrayAutoHide = value; UserDefaults.standard.set(value, forKey: "macNotchFloatingTrayAutoHide") }))
                 Text("When enabled, the floating shelf closes after 20 seconds with the pointer outside it. It stays open while you are working in the shelf.").font(.caption)
+                Group {
+                    Text("Action Ring").font(.headline)
+                    Text("Choose which built-in actions appear around the ring. Keep at least one enabled.").font(.caption).foregroundStyle(.secondary)
+                    ForEach(ActionRingOption.all) { option in
+                        Toggle(option.title, isOn: Binding(
+                            get: { store.actionRingActionIDs.contains(option.id) },
+                            set: { store.setActionRingAction(option.id, enabled: $0) }
+                        ))
+                    }
+                }
                 Text("While carrying files, quickly reverse direction twice to bring the shelf beside the pointer. Drag tracking uses pointer movement only; files are read only when dropped.").font(.caption)
                 Group {
                     Text("Floating System Monitor").font(.headline)
@@ -3116,7 +3139,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
             ActionRingAction(id: "notes", title: "Notes", symbol: "note.text", tint: .yellow) { [weak self] in self?.selectTab("Notes") },
             ActionRingAction(id: "settings", title: "Settings", symbol: "gearshape.fill", tint: .gray) { [weak self] in self?.settings?.show() }
         ]
-        actionRingWindow = FloatingWindow(title: "MacNotch Action Ring", size: NSSize(width: 360, height: 360), content: ActionRingView(actions: ringActions) { [weak self] in self?.actionRingWindow?.hide() })
+        actionRingWindow = FloatingWindow(title: "MacNotch Action Ring", size: NSSize(width: 360, height: 360), content: ActionRingView(store: store, actions: ringActions) { [weak self] in self?.actionRingWindow?.hide() })
         actionRingWindow?.panel.styleMask = [.borderless, .nonactivatingPanel]
         actionRingWindow?.panel.isOpaque = false
         actionRingWindow?.panel.backgroundColor = .clear

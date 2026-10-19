@@ -1,5 +1,22 @@
 import SwiftUI
 
+struct ActionRingOption: Identifiable {
+    let id: String
+    let title: String
+    let symbol: String
+
+    static let all: [ActionRingOption] = [
+        .init(id: "tray", title: "File Tray", symbol: "tray.full.fill"),
+        .init(id: "music", title: "Music", symbol: "music.note"),
+        .init(id: "widgets", title: "Widgets", symbol: "chart.bar.fill"),
+        .init(id: "record", title: "Record", symbol: "record.circle.fill"),
+        .init(id: "focus", title: "Focus", symbol: "timer"),
+        .init(id: "gemini", title: "Gemini", symbol: "sparkles"),
+        .init(id: "notes", title: "Notes", symbol: "note.text"),
+        .init(id: "settings", title: "Settings", symbol: "gearshape.fill")
+    ]
+}
+
 struct ActionRingAction: Identifiable {
     let id: String
     let title: String
@@ -9,8 +26,16 @@ struct ActionRingAction: Identifiable {
 }
 
 struct ActionRingView: View {
+    @ObservedObject var store: NotchStore
     let actions: [ActionRingAction]
     let onDismiss: () -> Void
+
+    private var visibleActions: [ActionRingAction] {
+        let ranks = Dictionary(uniqueKeysWithValues: store.actionRingActionIDs.enumerated().map { ($1, $0) })
+        return actions.filter { ranks[$0.id] != nil }.sorted {
+            ranks[$0.id, default: Int.max] < ranks[$1.id, default: Int.max]
+        }
+    }
 
     var body: some View {
         GeometryReader { geometry in ringContent(size: geometry.size) }
@@ -40,14 +65,14 @@ struct ActionRingView: View {
     }
 
     private func actionButtons(center: CGPoint, radius: CGFloat) -> some View {
-        ForEach(actions.indices, id: \.self) { index in
+        ForEach(visibleActions.indices, id: \.self) { index in
             actionButton(at: index, center: center, radius: radius)
         }
     }
 
     private func actionButton(at index: Int, center: CGPoint, radius: CGFloat) -> some View {
-        let action = actions[index]
-        let angle = (2 * Double.pi * Double(index) / Double(max(1, actions.count))) - Double.pi / 2
+        let action = visibleActions[index]
+        let angle = (2 * Double.pi * Double(index) / Double(max(1, visibleActions.count))) - Double.pi / 2
         let x = center.x + CGFloat(cos(angle)) * radius
         let y = center.y + CGFloat(sin(angle)) * radius
         return Button {
