@@ -1,7 +1,7 @@
 # MacNotch downloads
 
-[Download MacNotch v0.55 DMG](https://github.com/sujanmj/macapp/releases/download/macnotch-v0.55/MacNotch-v0.55.dmg) · [SHA-256 checksum](https://github.com/sujanmj/macapp/releases/download/macnotch-v0.55/MacNotch-v0.55.dmg.sha256)
+[Download MacNotch v0.56 DMG](https://github.com/sujanmj/macapp/releases/download/macnotch-v0.56/MacNotch-v0.56.dmg) · [SHA-256 checksum](https://github.com/sujanmj/macapp/releases/download/macnotch-v0.56/MacNotch-v0.56.dmg.sha256)
 
-[Release and setup notes](https://github.com/sujanmj/macapp/releases/tag/macnotch-v0.55) · [App documentation](../README.md)
+[Release and setup notes](https://github.com/sujanmj/macapp/releases/tag/macnotch-v0.56) · [App documentation](../README.md)
 
 Native universal Apple Silicon/Intel build for macOS 14+. Beta: permission and device interaction testing remains necessary. Ad-hoc signed and unnotarized. Installer assets live in this app's own GitHub release, rather than making source history carry binary installers.

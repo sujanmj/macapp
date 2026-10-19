@@ -1502,21 +1502,34 @@ struct NotchView: View {
 
 private struct AppLauncherView: View {
     @ObservedObject var store: AppLauncherStore
+    @State private var selectedAppID: String?
+
+    private var visibleApps: [LaunchableApp] { store.visibleApplications }
+    private func moveSelection(_ direction: Int) {
+        selectedAppID = AppLauncherNavigation.nextID(currentID: selectedAppID, direction: direction, ids: visibleApps.map(\.id))
+    }
+    private func launchSelectedApp() {
+        guard let selectedAppID, let app = visibleApps.first(where: { $0.id == selectedAppID }) else { return }
+        store.launch(app)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
-                TextField("Search apps by name", text: $store.search)
+                TextField("Search apps by name · ↑ ↓ to move · Return to open", text: $store.search)
                     .textFieldStyle(.roundedBorder)
+                    .onKeyPress(.downArrow) { moveSelection(1); return .handled }
+                    .onKeyPress(.upArrow) { moveSelection(-1); return .handled }
+                    .onKeyPress(.return) { launchSelectedApp(); return .handled }
                 Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .help("Refresh installed apps")
             }
             HStack {
                 Toggle("Favorites only", isOn: $store.favoritesOnly).toggleStyle(.switch).controlSize(.small)
                 Spacer()
-                Text("\(store.visibleApplications.count) apps").font(.caption2).foregroundStyle(.secondary)
+                Text("\(visibleApps.count) apps").font(.caption2).foregroundStyle(.secondary)
             }
-            if store.visibleApplications.isEmpty {
+            if visibleApps.isEmpty {
                 ContentUnavailableView(store.favoritesOnly && store.search.isEmpty ? "No favorites yet" : "No matching apps",
                                        systemImage: "app.dashed",
                                        description: Text(store.favoritesOnly && store.search.isEmpty ? "Switch off Favorites only, then pin apps with the star." : "Try another app name."))
@@ -1524,7 +1537,7 @@ private struct AppLauncherView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(store.visibleApplications) { app in
+                        ForEach(visibleApps) { app in
                             HStack(spacing: 8) {
                                 Image(nsImage: NSWorkspace.shared.icon(forFile: app.url.path))
                                     .resizable().frame(width: 25, height: 25)
@@ -1541,12 +1554,15 @@ private struct AppLauncherView: View {
                                 }.buttonStyle(.plain).help(store.favoriteIDs.contains(app.id) ? "Remove favorite" : "Add to favorites")
                             }
                             .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+                            .background(selectedAppID == app.id ? Color.cyan.opacity(0.14) : .white.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
                         }
                     }
                 }.frame(maxHeight: 195)
             }
             Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .onChange(of: visibleApps.map(\.id)) { _, ids in
+            if !ids.contains(selectedAppID ?? "") { selectedAppID = ids.first }
         }
         .padding(12).modifier(GlassCard(tint: .cyan))
     }

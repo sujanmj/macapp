@@ -25,7 +25,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Category | Feature | Status |
 | --- | --- | --- |
 | Productivity | Alfred Workflow | Planned |
-| Productivity | App Launcher | Partial — local searchable application catalog and pinned favorites; keyboard navigation, custom actions, and launcher workflows remain |
+| Productivity | App Launcher | Partial — local searchable application catalog, pinned favorites, and keyboard navigation; custom actions and launcher workflows remain |
 | Productivity | Termi-Notch | Planned |
 | Productivity | Calendar and Tasks | Partial — on-demand events, reminder creation, and explicit completion; editing tasks and advanced calendar controls remain |
 | Productivity | Pomodoro | Partial — 25-minute focus, automatic 5-minute breaks, and a 15-minute break after each fourth focus; custom durations and cycle history remain |

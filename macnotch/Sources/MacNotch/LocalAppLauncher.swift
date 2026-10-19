@@ -10,6 +10,17 @@ struct LaunchableApp: Identifiable, Hashable {
     var name: String { url.deletingPathExtension().lastPathComponent }
 }
 
+enum AppLauncherNavigation {
+    static func nextID(currentID: String?, direction: Int, ids: [String]) -> String? {
+        guard !ids.isEmpty, direction != 0 else { return nil }
+        guard let currentID, let currentIndex = ids.firstIndex(of: currentID) else {
+            return direction > 0 ? ids.first : ids.last
+        }
+        let nextIndex = (currentIndex + (direction > 0 ? 1 : -1) + ids.count) % ids.count
+        return ids[nextIndex]
+    }
+}
+
 enum LocalAppCatalog {
     static func applications(in roots: [URL], fileManager: FileManager = .default) -> [LaunchableApp] {
         var byPath: [String: LaunchableApp] = [:]
