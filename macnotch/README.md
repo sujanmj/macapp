@@ -1,4 +1,4 @@
-# MacNotch v0.47
+# MacNotch v0.48
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -19,13 +19,14 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
 - **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
+- **Teleprompter:** save a local script, open a floating always-on-top reader, adjust scroll speed and text size, pause/resume/reset, and mirror the text for a beam-splitter setup. Control–Option–P opens the reader. Scrolling is local and requires no account or network access.
 - **Calendar & Tasks:** explicitly load upcoming events from the next seven days or incomplete reminders due in the next month. MacNotch asks for Calendar or Reminders permission only after you press the matching load or create button. Create a reminder in your default Reminders list with an optional due date; marking one complete is a separate explicit action. Data stays local.
 - **Notes, Siri, and Shortcuts:** notes save locally; Siri opens Apple's own interface rather than running inside MacNotch.
 - **Hardware feedback:** optional volume and brightness-key indications. macOS exposes brightness direction rather than a dependable percentage on supported Macs.
 
 ## Features still being built
 
-The broader Droppy feature set is not complete in MacNotch yet. In particular, MacNotch does not currently provide third-party live-activity integrations, meeting controls, a lock-screen player, calendar widgets, player queue/artwork/lyrics, or the full extension catalog. Those will be developed and tested in later increments. MacNotch is an original implementation and does not include Droppy's code, artwork, or name.
+The broader Droppy feature set is not complete in MacNotch yet. Third-party live-activity integrations, meeting controls, a lock-screen player, calendar widgets, the full extension catalog, full player queue controls, Spotify/synchronized lyrics, and voice-follow teleprompter scrolling remain incomplete. MacNotch is an original implementation and does not include Droppy's code, artwork, or name.
 
 See [ROADMAP.md](ROADMAP.md) for the current feature-by-feature implementation tracker.
 
@@ -124,6 +125,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.48
+
+Added a local teleprompter with a persistent script editor, smoothly adjustable floating reader, pause/resume/replay and reset controls, text-size and scroll-speed adjustment, mirror mode, and the global Control–Option–P shortcut. Playback timing logic has deterministic pause/resume and speed-clamp tests.
 
 ## v0.47
 

@@ -109,6 +109,10 @@ private struct TrayThumbnail: View {
 final class NotchStore: ObservableObject {
     private static let pinnedClipboardURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("com.sujanmj.macnotch/PinnedClipboard.json")
+    private static func restoredDouble(_ key: String, default fallback: Double, range: ClosedRange<Double>) -> Double {
+        let value = UserDefaults.standard.object(forKey: key) == nil ? fallback : UserDefaults.standard.double(forKey: key)
+        return value.isFinite ? min(range.upperBound, max(range.lowerBound, value)) : fallback
+    }
     @Published var expanded = false
     @Published var cameraInset: CGFloat = 0
     @Published var compactWidth: CGFloat = 220
@@ -164,6 +168,13 @@ final class NotchStore: ObservableObject {
     @Published var outputTokens: Int?
     @Published var sessionTokens = 0
     @Published var note = UserDefaults.standard.string(forKey: "quickNote") ?? ""
+    @Published var teleprompterScript = UserDefaults.standard.string(forKey: "macNotchTeleprompterScript") ?? ""
+    @Published var teleprompterSpeed = NotchStore.restoredDouble("macNotchTeleprompterSpeed", default: 45, range: 10...120)
+    @Published var teleprompterFontSize = NotchStore.restoredDouble("macNotchTeleprompterFontSize", default: 36, range: 24...72)
+    @Published var teleprompterMirrored = UserDefaults.standard.bool(forKey: "macNotchTeleprompterMirrored")
+    @Published var teleprompterRunning = false
+    @Published var teleprompterFinished = false
+    private var teleprompterPlayback = TeleprompterPlayback(pointsPerSecond: NotchStore.restoredDouble("macNotchTeleprompterSpeed", default: 45, range: 10...120))
     @Published var trayFiles: [TrayEntry] = (try? JSONDecoder().decode([TrayEntry].self, from: UserDefaults.standard.data(forKey: "macNotchTrayFiles") ?? Data())) ?? []
     @Published var traySearch = ""
     @Published var selectedTrayIDs = Set<UUID>()
@@ -195,6 +206,7 @@ final class NotchStore: ObservableObject {
     var showFloatingTray: (() -> Void)?
     var showFloatingPlayer: (() -> Void)?
     var showFloatingStats: (() -> Void)?
+    var showTeleprompter: (() -> Void)?
     var showMainNotch: (() -> Void)?
     @Published var recorder = ScreenRecorderController()
     let calendarEventsController = CalendarEventsController()
@@ -745,6 +757,53 @@ final class NotchStore: ObservableObject {
         focusEnd = Date().addingTimeInterval(TimeInterval(phase.duration))
     }
     func stopFocus() { focusEnd = nil; remaining = 0 }
+    func setTeleprompterScript(_ script: String) {
+        teleprompterScript = String(script.prefix(100_000))
+        UserDefaults.standard.set(teleprompterScript, forKey: "macNotchTeleprompterScript")
+        resetTeleprompter()
+    }
+    func setTeleprompterSpeed(_ value: Double) {
+        teleprompterSpeed = value.isFinite ? min(120, max(10, value)) : 45
+        teleprompterPlayback.setSpeed(teleprompterSpeed, at: Date())
+        UserDefaults.standard.set(teleprompterSpeed, forKey: "macNotchTeleprompterSpeed")
+    }
+    func setTeleprompterFontSize(_ value: Double) {
+        teleprompterFontSize = value.isFinite ? min(72, max(24, value)) : 36
+        UserDefaults.standard.set(teleprompterFontSize, forKey: "macNotchTeleprompterFontSize")
+    }
+    func setTeleprompterMirrored(_ value: Bool) {
+        teleprompterMirrored = value
+        UserDefaults.standard.set(value, forKey: "macNotchTeleprompterMirrored")
+    }
+    func toggleTeleprompter(at date: Date = Date()) {
+        if teleprompterRunning {
+            teleprompterPlayback.pause(at: date)
+            teleprompterRunning = false
+        } else {
+            guard !teleprompterScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            if teleprompterFinished { teleprompterPlayback.reset(); teleprompterFinished = false }
+            teleprompterPlayback.start(at: date)
+            teleprompterRunning = true
+        }
+    }
+    func pauseTeleprompter(at date: Date = Date()) {
+        teleprompterPlayback.pause(at: date)
+        teleprompterRunning = false
+    }
+    func resetTeleprompter() {
+        teleprompterPlayback.reset()
+        teleprompterRunning = false
+        teleprompterFinished = false
+    }
+    func teleprompterOffset(at date: Date) -> Double {
+        teleprompterPlayback.offset(at: date)
+    }
+    func finishTeleprompter(at date: Date) {
+        guard teleprompterRunning else { return }
+        teleprompterPlayback.pause(at: date)
+        teleprompterRunning = false
+        teleprompterFinished = true
+    }
     func openSiri() {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Siri") {
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, _ in }
@@ -841,10 +900,10 @@ struct NotchView: View {
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 5) {
-                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Notes"], id: \.self) { item in
+                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Prompt", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : 340
+                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : item == "Prompt" ? 390 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
@@ -873,6 +932,7 @@ struct NotchView: View {
                 case "Gemini": gemini
                 case "Focus": focus
                 case "Events": CalendarEventsView(store: store)
+                case "Prompt": teleprompter
                 default: notes
                 }
             }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -896,6 +956,7 @@ struct NotchView: View {
         case "Gemini": return "sparkles"
         case "Focus": return "timer"
         case "Events": return "calendar"
+        case "Prompt": return "text.alignleft"
         default: return "note.text"
         }
     }
@@ -927,6 +988,7 @@ struct NotchView: View {
             VStack(spacing: 8) {
                 dashboardAction("Ask", detail: "Gemini", symbol: "sparkles", color: store.highlightColor) { tab = "Gemini"; store.expandedHeight = 340; store.resize?() }
                 dashboardAction("Notes", detail: "Catch a thought", symbol: "note.text", color: store.highlightColor) { tab = "Notes"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Prompt", detail: "⌃⌥P", symbol: "text.alignleft", color: store.highlightColor) { store.showTeleprompter?() }
                 dashboardAction("Emoji", detail: "⌃⌥E", symbol: "face.smiling", color: store.highlightColor) { NSApp.orderFrontCharacterPalette(nil) }
             }.frame(width: 130)
             VStack(alignment: .leading, spacing: 12) {
@@ -1331,6 +1393,32 @@ struct NotchView: View {
                 HStack { Text("Top app: \(pulse.topApp ?? "Unavailable")").lineLimit(1); Text(pulse.date, style: .time) }.font(.caption2)
             }
         }
+    }
+    private var teleprompter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Teleprompter", systemImage: "text.alignleft").font(.headline)
+                Spacer()
+                Button { store.showTeleprompter?() } label: { Label("Float", systemImage: "macwindow") }
+            }
+            Text("Your script stays on this Mac. Open the floating reader to scroll it above other apps.")
+                .font(.caption).foregroundStyle(.secondary)
+            TextEditor(text: Binding(get: { store.teleprompterScript }, set: { store.setTeleprompterScript($0) }))
+                .font(.system(size: 12)).scrollContentBackground(.hidden).padding(8)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12)).frame(height: 115)
+            HStack {
+                Text("Scroll speed").font(.caption)
+                Slider(value: Binding(get: { store.teleprompterSpeed }, set: { store.setTeleprompterSpeed($0) }), in: 10...120)
+                Text("\(Int(store.teleprompterSpeed)) pt/s").font(.system(size: 9, design: .monospaced)).frame(width: 55)
+            }
+            Toggle("Mirror text for a teleprompter mirror", isOn: Binding(get: { store.teleprompterMirrored }, set: { store.setTeleprompterMirrored($0) }))
+                .font(.caption)
+            HStack {
+                Button("Open Floating Reader · ⌃⌥P") { store.showTeleprompter?() }.buttonStyle(.borderedProminent).tint(store.highlightColor)
+                Button("Reset") { store.resetTeleprompter() }
+            }
+        }
+        .padding(12).modifier(GlassCard(tint: store.highlightColor))
     }
     private var notes: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2230,9 +2318,103 @@ struct NotchSettings: View {
                 Text("Volume changes show the reported level when available. Brightness keys show direction only. Hardware-key visibility depends on macOS permissions/device; Apple’s own HUD remains enabled.").font(.caption)
                 Button("Input Monitoring Settings") { openPrivacy("Privacy_ListenEvent") }
                 Divider(); LoginToggle()
-                Text("⌃⌥N expands/collapses the notch panel; ⌃⌥F opens the floating file shelf; ⌃⌥W opens the floating system monitor; ⌃⌥M opens the music player. Hover to expand; pin to keep the notch panel open. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
+                Text("⌃⌥N expands/collapses the notch panel; ⌃⌥F opens the floating file shelf; ⌃⌥W opens the system monitor; ⌃⌥M opens the music player; ⌃⌥P opens the teleprompter. Hover to expand; pin to keep the notch panel open. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
             }.padding(20)
         }.frame(width: 480, height: 450)
+    }
+}
+
+private struct TeleprompterView: View {
+    @ObservedObject var store: NotchStore
+    @State private var contentHeight: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Label("Teleprompter", systemImage: "text.alignleft").font(.headline)
+                Spacer()
+                Toggle("Mirror", isOn: Binding(get: { store.teleprompterMirrored }, set: { store.setTeleprompterMirrored($0) }))
+                    .toggleStyle(.checkbox).fixedSize()
+                HStack(spacing: 6) {
+                    Text("Speed").font(.caption2)
+                    Slider(value: Binding(get: { store.teleprompterSpeed }, set: { store.setTeleprompterSpeed($0) }), in: 10...120).frame(width: 105)
+                    Text("\(Int(store.teleprompterSpeed))").font(.system(size: 10, design: .monospaced)).frame(width: 24)
+                }
+                HStack(spacing: 5) {
+                    Text("Text").font(.caption2)
+                    Slider(value: Binding(get: { store.teleprompterFontSize }, set: { store.setTeleprompterFontSize($0) }), in: 24...72).frame(width: 82)
+                }
+            }
+            GeometryReader { viewport in
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !store.teleprompterRunning)) { context in
+                    let limit = max(0, contentHeight - viewport.size.height)
+                    let offset = min(CGFloat(store.teleprompterOffset(at: context.date)), limit)
+                    TeleprompterText(store: store,
+                                     width: max(1, viewport.size.width - 52),
+                                     topInset: viewport.size.height * 0.72,
+                                     bottomInset: viewport.size.height * 0.72,
+                                     offset: offset)
+                        .frame(width: viewport.size.width, alignment: .top)
+                        .onChange(of: offset) { _, value in finishIfNeeded(offset: value, limit: limit, at: context.date) }
+                }
+                .clipped()
+                .background(.black.opacity(0.88), in: RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.12), lineWidth: 1))
+            }
+            .onPreferenceChange(TeleprompterHeightPreference.self) { contentHeight = $0 }
+            HStack {
+                Button(store.teleprompterRunning ? "Pause" : store.teleprompterFinished ? "Replay" : "Start Scrolling") {
+                    store.toggleTeleprompter()
+                }.buttonStyle(.borderedProminent).tint(store.highlightColor)
+                    .disabled(store.teleprompterScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Reset") { store.resetTeleprompter() }
+                Spacer()
+                Text(store.teleprompterFinished ? "End of script" : store.teleprompterRunning ? "Scrolling" : "Paused")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 560, minHeight: 400)
+        .background(NotchGlass().overlay(Color.black.opacity(0.82)))
+        .preferredColorScheme(.dark)
+        .onChange(of: store.teleprompterScript) { _, _ in store.resetTeleprompter() }
+    }
+
+    private func finishIfNeeded(offset: CGFloat, limit: CGFloat, at date: Date) {
+        guard limit > 0, offset >= limit, store.teleprompterRunning else { return }
+        store.finishTeleprompter(at: date)
+    }
+}
+
+private struct TeleprompterText: View {
+    @ObservedObject var store: NotchStore
+    let width: CGFloat
+    let topInset: CGFloat
+    let bottomInset: CGFloat
+    let offset: CGFloat
+
+    var body: some View {
+        Text(store.teleprompterScript.isEmpty ? "Add a script in MacNotch, then return here to read it." : store.teleprompterScript)
+            .font(.system(size: store.teleprompterFontSize, weight: .medium, design: .rounded))
+            .lineSpacing(12)
+            .foregroundStyle(store.teleprompterScript.isEmpty ? Color.secondary : Color.white)
+            .frame(width: width, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
+            .background(GeometryReader { content in
+                Color.clear.preference(key: TeleprompterHeightPreference.self, value: content.size.height)
+            })
+            .scaleEffect(x: store.teleprompterMirrored ? -1 : 1, y: 1)
+            .offset(y: -offset)
+    }
+}
+
+private struct TeleprompterHeightPreference: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
@@ -2344,12 +2526,14 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     let floatingTrayShortcut = GlobalShortcut()
     let floatingPlayerShortcut = GlobalShortcut()
     let floatingStatsShortcut = GlobalShortcut()
+    let teleprompterShortcut = GlobalShortcut()
     let emojiShortcut = GlobalShortcut()
     var window: FloatingWindow?
     var settings: FloatingWindow?
     var floatingTray: FloatingWindow?
     var floatingPlayer: FloatingWindow?
     var floatingStats: FloatingWindow?
+    var teleprompterWindow: FloatingWindow?
     var displayIslands: [UInt32: FloatingWindow] = [:]
     var expandedDisplayIslands = Set<UInt32>()
     var displayObserver: NSObjectProtocol?
@@ -2375,12 +2559,15 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingTray = FloatingWindow(title: "MacNotch File Shelf", size: NSSize(width: 392, height: 360), content: FloatingTrayView(store: store))
         floatingPlayer = FloatingWindow(title: "MacNotch Player", size: NSSize(width: 460, height: 260), content: FloatingPlayerView(store: store))
         floatingStats = FloatingWindow(title: "MacNotch System Monitor", size: NSSize(width: 370, height: 230), content: FloatingStatsView(store: store))
+        teleprompterWindow = FloatingWindow(title: "MacNotch Teleprompter", size: NSSize(width: 760, height: 540), content: TeleprompterView(store: store))
         _ = floatingTray?.panel.setFrameAutosaveName("MacNotchFloatingFileShelf")
         _ = floatingPlayer?.panel.setFrameAutosaveName("MacNotchFloatingPlayer")
         _ = floatingStats?.panel.setFrameAutosaveName("MacNotchFloatingSystemMonitor")
+        _ = teleprompterWindow?.panel.setFrameAutosaveName("MacNotchTeleprompter")
         store.showFloatingTray = { [weak self] in self?.showFloatingTray() }
         store.showFloatingPlayer = { [weak self] in self?.showFloatingPlayer() }
         store.showFloatingStats = { [weak self] in self?.showFloatingStats() }
+        store.showTeleprompter = { [weak self] in self?.showTeleprompter() }
         store.showMainNotch = { [weak self] in self?.showMainNotch() }
         if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
             let point = NSEvent.mouseLocation
@@ -2404,6 +2591,10 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
         floatingStatsShortcut.action = { [weak self] in self?.showFloatingStats() }
         if !floatingStatsShortcut.register(key: UInt32(kVK_ANSI_W), modifiers: UInt32(controlKey | optionKey)) {
             store.message = "System monitor shortcut unavailable; use the menu bar or Widgets tab."
+        }
+        teleprompterShortcut.action = { [weak self] in self?.showTeleprompter() }
+        if !teleprompterShortcut.register(key: UInt32(kVK_ANSI_P), modifiers: UInt32(controlKey | optionKey)) {
+            store.message = "Teleprompter shortcut unavailable; use the menu bar or Prompt tab."
         }
         emojiShortcut.action = { NSApp.orderFrontCharacterPalette(nil) }
         if !emojiShortcut.register(key: UInt32(kVK_ANSI_E), modifiers: UInt32(controlKey | optionKey)) {
@@ -2462,6 +2653,7 @@ final class NotchDelegate: NSObject, NSApplicationDelegate {
     func showFloatingTray() { floatingTray?.show() }
     func showFloatingPlayer() { floatingPlayer?.show() }
     func showFloatingStats() { floatingStats?.show() }
+    func showTeleprompter() { teleprompterWindow?.show() }
     func showMainNotch() {
         store.expanded = true
         store.pinned = true
@@ -2552,6 +2744,7 @@ struct MacNotchApp: App {
             Button("Floating File Shelf   ⌃⌥F") { delegate.showFloatingTray() }
             Button("Floating Player   ⌃⌥M") { delegate.showFloatingPlayer() }
             Button("System Monitor   ⌃⌥W") { delegate.showFloatingStats() }
+            Button("Teleprompter   ⌃⌥P") { delegate.showTeleprompter() }
             Button("Settings") { delegate.settings?.show() }
             Divider(); Button("Quit MacNotch") { NSApp.terminate(nil) }
         }

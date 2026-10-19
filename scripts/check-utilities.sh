@@ -54,3 +54,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/PomodoroCycle.swift scripts/macnotch-pomodoro-tests.swift \
   -o "$scratch/macnotch-pomodoro-check"
 "$scratch/macnotch-pomodoro-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/TeleprompterPlayback.swift scripts/macnotch-teleprompter-tests.swift \
+  -o "$scratch/macnotch-teleprompter-check"
+"$scratch/macnotch-teleprompter-check"

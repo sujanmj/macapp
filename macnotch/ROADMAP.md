@@ -28,13 +28,13 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Termi-Notch | Planned |
 | Productivity | Calendar and Tasks | Partial — on-demand events, reminder creation, and explicit completion; editing tasks and advanced calendar controls remain |
 | Productivity | Pomodoro | Partial — 25-minute focus, automatic 5-minute breaks, and a 15-minute break after each fourth focus; custom durations and cycle history remain |
+| Productivity | Teleprompter | Partial — local saved script, adjustable floating scroll reader, pause/resume, mirror mode, and global shortcut; script formatting and voice-follow scrolling remain |
 | Productivity | Meetings | Partial — local display or selected-window/system/mic recording, separate stop or stop-and-transcribe workflow, and explicit on-device transcript; third-party meeting controls still needed |
 | Productivity | Notes | Partial — local quick note only |
 | Productivity | Thunderstorm launcher | Planned |
 | Productivity | Obsidian | Planned |
 | Productivity | Weather | Planned |
 | Productivity | Action Ring | Planned |
-| Productivity | Teleprompter | Planned |
 | Productivity | DropClip | Planned |
 | Productivity | Xcode Builds | Planned |
 | Productivity | Things 3 | Planned |
