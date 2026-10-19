@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 51006)
-Total output lines: 3452
-
 import SwiftUI
 import QuartzCore
 import AppKit
@@ -1106,7 +1103,1327 @@ struct NotchView: View {
     @State private var previewItem: TrayPreviewItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        VStack…21006 tokens truncated…oregroundStyle(.secondary).lineLimit(1)
+        VStack(spacing: 0) {
+            if store.cameraInset > 0 { Color.clear.frame(height: store.cameraInset) }
+            ZStack(alignment: .top) {
+                if let hud = store.hardwareHUD, !store.expanded {
+                    HStack(spacing: 7) {
+                        Image(systemName: hud.symbol).foregroundStyle(.white).font(.system(size: 10))
+                        Text(hud.label).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                        if let level = hud.level {
+                            ProgressView(value: level).tint(.white).frame(width: 30)
+                            Text("\(Int(level * 100))%").font(.system(size: 9, design: .monospaced))
+                        }
+                    }.frame(height: 30).transition(.opacity)
+                } else if store.expanded {
+                    expandedContent
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                } else if store.recording {
+                    HStack(spacing: 8) {
+                        Circle().fill(.red).frame(width: 7, height: 7)
+                        Text("REC \(clock(Double(store.recordingSeconds)))").font(.system(size: 9, weight: .bold, design: .monospaced))
+                        Button { Task { await store.recorder.stop() } } label: { Image(systemName: "stop.fill").font(.system(size: 9)) }
+                            .buttonStyle(.plain).help("Stop screen recording")
+                        expandButton
+                    }.frame(height: 30).foregroundStyle(.white).accessibilityLabel("Screen recording in progress")
+                } else if store.compactMedia {
+                    compactPlayer
+                } else if store.compactAI {
+                    HStack(spacing: 7) {
+                        if let icon = store.activeIcon { Image(nsImage: icon).resizable().frame(width: 13, height: 13) }
+                        Image(systemName: "sparkles").font(.system(size: 9)).foregroundStyle(.cyan)
+                        Text("MacNotch").font(.system(size: 10, weight: .semibold))
+                        expandButton
+                    }.frame(height: 30).help("Open MacNotch for Gemini API usage. ChatGPT account allowance is not exposed by its desktop app.")
+                } else {
+                    HStack(spacing: 10) {
+                        Image(systemName: store.compactMedia ? "music.note" : "sparkle").font(.system(size: 10, weight: .semibold)).foregroundStyle(store.compactMedia ? .green : .cyan)
+                        Text("MacNotch").font(.system(size: 10, weight: .semibold))
+                        if store.focusEnd != nil { Text(String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60)).font(.system(size: 9, design: .monospaced)) }
+                        expandButton
+                    }
+                    .frame(height: 30)
+                    .transition(.opacity)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background {
+            if store.expanded {
+                NotchGlass()
+                    .overlay(Color.black.opacity(0.66))
+                    .overlay(LinearGradient(colors: [Color(red: 0.08, green: 0.12, blue: 0.70).opacity(0.22), Color(red: 0.36, green: 0.10, blue: 0.76).opacity(0.20), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
+            } else {
+                Color.black
+            }
+        }
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 16,
+                                          bottomTrailingRadius: store.expanded ? 28 : 16, topTrailingRadius: 5))
+        .overlay(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: store.expanded ? 28 : 14, bottomTrailingRadius: store.expanded ? 28 : 14, topTrailingRadius: 5).strokeBorder(.white.opacity(store.expanded ? 0.3 : 0.12), lineWidth: 0.7))
+        .foregroundStyle(.white)
+        .preferredColorScheme(.dark)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.32), value: store.expanded)
+        .onHover { store.hover($0) }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: store.hardwareHUD != nil)
+        .buttonStyle(NotchControlStyle(tint: store.highlightColor))
+        .onDrop(of: [UTType.fileURL], isTargeted: $store.trayDropTargeted, perform: acceptDroppedFiles)
+        .sheet(item: $previewItem) { item in
+            VStack(spacing: 8) {
+                HStack {
+                    Text(item.url.lastPathComponent).font(.headline).lineLimit(1)
+                    Spacer()
+                    Button("Done") { previewItem = nil }
+                }
+                QuickLookPreviewView(url: item.url)
+            }
+            .padding(12)
+            .frame(minWidth: 520, minHeight: 420)
+        }
+        .onChange(of: store.requestedTab) { _, requested in
+            guard let requested else { return }
+            tab = requested
+            store.expandedHeight = requested == "Home" ? 280 : requested == "Music" ? 260 : requested == "Tray" || requested == "Widgets" || requested == "Capture" ? 360 : requested == "Events" ? 330 : requested == "Prompt" ? 390 : requested == "Launch" || requested == "Audio" ? 360 : 340
+            store.resize?()
+            store.requestedTab = nil
+        }
+    }
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 5) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                ForEach(["Home", "Launch", "Audio", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Prompt", "Notes"], id: \.self) { item in
+                    Button {
+                        tab = item
+                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : item == "Prompt" ? 390 : item == "Launch" || item == "Audio" ? 360 : 340
+                        store.resize?()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: icon(item)).foregroundStyle(accent(item))
+                            Text(item == "Clipboard" ? "Clips" : item).fontWeight(.medium)
+                        }.font(.system(size: 10)).padding(.horizontal, 8).padding(.vertical, 7)
+                            .background(tab == item ? accent(item).opacity(0.26) : accent(item).opacity(0.09), in: Capsule())
+                    }.buttonStyle(.plain).foregroundStyle(.primary).help(item)
+                }
+                    }
+                }
+                Spacer(minLength: 4)
+                Button { store.pinned.toggle() } label: { Image(systemName: store.pinned ? "pin.fill" : "pin") }
+                    .foregroundStyle(store.pinned ? .cyan : .gray).help("Keep open")
+                Button { store.expanded = false; store.pinned = false; store.resize?() } label: { Image(systemName: "chevron.up") }
+                    .help("Collapse")
+            }.buttonStyle(.plain)
+            Group {
+                switch tab {
+                case "Home": dashboard
+                case "Launch": AppLauncherView(store: appLauncher)
+                case "Audio": AudioControlView(store: audioControl)
+                case "Music": media
+                case "Tray": fileTray
+                case "Widgets": widgets
+                case "Live": liveActivities
+                case "Capture": ElementCaptureView(capture: store.capture)
+                case "Record": recordingControls
+                case "Clipboard": clipboard
+                case "Gemini": gemini
+                case "Focus": focus
+                case "Events": CalendarEventsView(store: store)
+                case "Prompt": teleprompter
+                default: notes
+                }
+            }.frame(maxWidth: .infinity, alignment: .topLeading)
+                .id(tab).transition(.opacity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: tab)
+            if !store.message.isEmpty { Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2) }
+        }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+    }
+    private func icon(_ name: String) -> String {
+        switch name {
+        case "Home": return "square.grid.2x2.fill"
+        case "Launch": return "app.dashed"
+        case "Audio": return "speaker.wave.2.fill"
+        case "Music": return "music.note"
+        case "Tray": return "tray.full.fill"
+        case "Widgets": return "chart.xyaxis.line"
+        case "Live": return "dot.radiowaves.left.and.right"
+        case "Capture": return "viewfinder"
+        case "Record": return "record.circle.fill"
+        case "Clipboard": return "doc.on.clipboard"
+        case "Gemini": return "sparkles"
+        case "Focus": return "timer"
+        case "Events": return "calendar"
+        case "Prompt": return "text.alignleft"
+        default: return "note.text"
+        }
+    }
+    private var dashboard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16).fill(LinearGradient(colors: [.indigo.opacity(0.8), .purple.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        Image(systemName: store.playing ? "waveform" : "music.note").font(.system(size: 26, weight: .light))
+                    }.frame(width: 66, height: 66)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(store.musicEnabled ? store.track : "Your music, right here").font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                        Text(store.musicEnabled ? store.artist : "Music & Spotify").font(.system(size: 10)).foregroundStyle(.gray).lineLimit(1)
+                    }
+                }
+                HStack(spacing: 22) {
+                    if store.musicEnabled {
+                        Button { store.media("previous track") } label: { Image(systemName: "backward.end.fill") }
+                        Button { store.media("playpause") } label: { Image(systemName: store.playing ? "pause.fill" : "play.fill") }
+                        Button { store.media("next track") } label: { Image(systemName: "forward.end.fill") }
+                    } else {
+                        Button("Connect player") { tab = "Music"; store.expandedHeight = 260; store.resize?() }
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(.cyan)
+                    }
+                }.buttonStyle(.plain).frame(maxWidth: .infinity)
+            }.padding(14).frame(width: 250, height: 148, alignment: .topLeading)
+                .modifier(GlassCard(tint: store.highlightColor))
+            VStack(spacing: 8) {
+                dashboardAction("Ask", detail: "Gemini", symbol: "sparkles", color: store.highlightColor) { tab = "Gemini"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Notes", detail: "Catch a thought", symbol: "note.text", color: store.highlightColor) { tab = "Notes"; store.expandedHeight = 340; store.resize?() }
+                dashboardAction("Prompt", detail: "⌃⌥P", symbol: "text.alignleft", color: store.highlightColor) { store.showTeleprompter?() }
+                dashboardAction("Emoji", detail: "⌃⌥E", symbol: "face.smiling", color: store.highlightColor) { NSApp.orderFrontCharacterPalette(nil) }
+            }.frame(width: 130)
+            VStack(alignment: .leading, spacing: 12) {
+                Text(Date(), format: .dateTime.weekday(.wide)).font(.system(size: 10)).foregroundStyle(.gray)
+                Text(Date(), format: .dateTime.day().month(.abbreviated)).font(.system(size: 23, weight: .medium, design: .rounded))
+                Divider().overlay(.white.opacity(0.12))
+                Button {
+                    if store.focusEnd == nil { store.startFocus() } else { store.stopFocus() }
+                } label: {
+                    Label(store.focusEnd == nil ? "Focus · 25 min" : String(format: "%02d:%02d · Stop", store.remaining / 60, store.remaining % 60), systemImage: "timer")
+                        .font(.system(size: 11)).foregroundStyle(.mint)
+                }.buttonStyle(.plain)
+                Menu {
+                    Section("Window Snap") {
+                        Button("Left Half") { windowSnap.snap(.leftHalf) }
+                        Button("Right Half") { windowSnap.snap(.rightHalf) }
+                        Button("Maximize") { windowSnap.snap(.maximize) }
+                        Button("Center Window") { windowSnap.snap(.center) }
+                    }
+                    Section("Stay Awake") {
+                        Button("Keep Awake · 1 Hour") { stayAwake.start(for: 60 * 60) }
+                        Button("Keep Awake · 2 Hours") { stayAwake.start(for: 2 * 60 * 60) }
+                        Button("Keep Awake · 4 Hours") { stayAwake.start(for: 4 * 60 * 60) }
+                        if stayAwake.isActive { Button("Turn Off") { stayAwake.stop() } }
+                    }
+                } label: {
+                    Label("Tools", systemImage: "slider.horizontal.3")
+                        .font(.system(size: 10, weight: .medium)).foregroundStyle(.cyan)
+                }.menuStyle(.borderlessButton)
+                let statuses = [windowSnap.status, stayAwake.status].filter { !$0.isEmpty }
+                if !statuses.isEmpty {
+                    Text(statuses.joined(separator: " · ")).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }.padding(14).frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+                .modifier(GlassCard(tint: .orange))
+        }
+    }
+    private func dashboardAction(_ title: String, detail: String, symbol: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                Image(systemName: symbol).foregroundStyle(color)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 11, weight: .medium))
+                    Text(detail).font(.system(size: 9)).foregroundStyle(.gray)
+                }
+                Spacer(minLength: 0)
+            }.padding(12).frame(height: 70)
+                .modifier(GlassCard(tint: color))
+        }.buttonStyle(.plain)
+    }
+    private func accent(_ section: String) -> Color {
+        switch section { case "Music": return .green; case "Audio", "Focus": return .orange; case "Events": return .cyan; default: return store.highlightColor }
+    }
+    private var expandButton: some View {
+        Button { store.expanded = true; store.pinned = true; store.resize?() } label: {
+            Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
+        }.buttonStyle(.plain).help("Expand notch").accessibilityLabel("Expand notch")
+    }
+    private var playbackButtons: some View {
+        HStack(spacing: 16) {
+            Button { store.media("previous track") } label: { Image(systemName: "backward.end.fill") }.help("Previous track")
+            Button { store.media("playpause") } label: { Image(systemName: store.playing ? "pause.fill" : "play.fill") }.help("Play / Pause")
+            Button { store.media("next track") } label: { Image(systemName: "forward.end.fill") }.help("Next track")
+        }.buttonStyle(.plain).foregroundStyle(.green).disabled(!store.musicEnabled)
+    }
+    private var progressBar: some View {
+        HStack(spacing: 8) {
+            Text(clock(store.position)).font(.system(size: 9, design: .monospaced))
+            Slider(value: Binding(get: { scrubbing ?? store.position }, set: { scrubbing = $0 }), in: 0...max(1, store.duration), onEditingChanged: { editing in
+                if !editing, let target = scrubbing { store.seek(target); scrubbing = nil }
+            }).tint(.green).disabled(!store.musicEnabled || store.duration <= 0)
+                .accessibilityLabel("Playback position")
+            Text(clock(store.duration)).font(.system(size: 9, design: .monospaced))
+        }
+    }
+    private func clock(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "—" }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+    private var compactPlayer: some View {
+        HStack(spacing: 7) {
+            Image(systemName: store.playing ? "waveform" : "music.note").font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
+            Text("MacNotch").font(.system(size: 10, weight: .semibold))
+            if store.musicEnabled { Image(systemName: store.playing ? "play.fill" : "pause.fill").font(.system(size: 8)).foregroundStyle(.green) }
+            expandButton
+        }.frame(height: 30).help(store.track)
+    }
+    private var media: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Picker("Player", selection: $store.player) { Text("Spotify").tag("Spotify"); Text("Music").tag("Music") }.frame(width: 220)
+                    .onChange(of: store.player) { _, value in
+                        UserDefaults.standard.set(value, forKey: "mediaPlayer")
+                        store.position = 0; store.duration = 0; store.refreshMusic()
+                    }
+                Spacer()
+                Button(store.musicEnabled ? "Refresh" : "Connect") { store.connectMusic() }
+                Button { store.showFloatingPlayer?() } label: { Label("Float", systemImage: "macwindow") }
+                    .help("Open the floating music player")
+            }
+            HStack(spacing: 16) {
+                Image(systemName: "music.note").font(.system(size: 30)).foregroundStyle(.green)
+                    .frame(width: 64, height: 64).modifier(GlassCard(tint: .green))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(store.track).font(.title3.bold()).lineLimit(2)
+                    Text(store.artist).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(); playbackButtons
+            }
+            progressBar
+            if !store.musicMessage.isEmpty { Text(store.musicMessage).font(.caption2).foregroundStyle(.orange) }
+        }.padding(16).modifier(GlassCard(tint: .green))
+    }
+    private var clipboard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle("Capture clipboard history for this session", isOn: Binding(get: { store.clipboardEnabled }, set: { store.setClipboard($0) }))
+            TextField("Search clips", text: $store.clipboardSearch)
+                .textFieldStyle(.roundedBorder)
+            List(selection: $store.selected) {
+                ForEach(store.visibleClipboardClips) { clip in
+                    HStack {
+                        Text(clip.title).font(.caption).lineLimit(2)
+                        Spacer()
+                        Button { store.togglePinnedClip(clip) } label: {
+                            Image(systemName: store.pinnedClipIDs.contains(clip.id) ? "pin.fill" : "pin")
+                        }.buttonStyle(.plain).help(store.pinnedClipIDs.contains(clip.id) ? "Unpin and remove this clip" : "Pin this clip and save it on this Mac")
+                        Button("Copy") { store.copy(clip) }
+                    }.tag(clip.id)
+                }
+            }.frame(height: 120)
+            HStack {
+                Button("Combine Selected Text") { store.combine() }
+                Button("Clear History") { store.clearClipboardHistory() }
+                Button("Clear Pins") { store.clearPinnedClips() }
+            }
+            Text("Capture is opt-in and session-only (20 clips, 2 MB each). Pin saves selected clips in an unencrypted local file on this Mac (up to 100 clips / 8 MB). Clear History keeps pins; Clear Pins deletes them. Concealed clipboard items are excluded.").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+    private var fileTray: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("File Tray").font(.headline)
+                    Text("Hold files from different folders here while you work.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { store.showFloatingTray?() } label: { Label("Float", systemImage: "macwindow.on.rectangle") }
+                    .help("Open a floating file shelf")
+                Button { chooseTrayFiles() } label: { Label("Add", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent).tint(store.highlightColor)
+            }
+            if store.trayFiles.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 24)).foregroundStyle(store.highlightColor)
+                    Text(store.trayDropTargeted ? "Drop to add to your tray" : "Drop files here, or choose Add")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Files stay on this Mac. MacNotch stores their locations, not copies.").font(.caption2).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 155)
+                .background(store.highlightColor.opacity(store.trayDropTargeted ? 0.22 : 0.08), in: RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(store.highlightColor.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+            } else {
+                TextField("Search files or folders", text: $store.traySearch)
+                    .textFieldStyle(.roundedBorder)
+                ScrollView {
+                    LazyVStack(spacing: 5) {
+                        if store.visibleTrayFiles.isEmpty {
+                            VStack(spacing: 5) {
+                                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                                Text("No files match this search").font(.caption).foregroundStyle(.secondary)
+                            }.frame(maxWidth: .infinity, minHeight: 80)
+                        }
+                        ForEach(store.visibleTrayFiles) { entry in
+                            HStack(spacing: 10) {
+                                Toggle("Select \(entry.name)", isOn: Binding(
+                                    get: { store.selectedTrayIDs.contains(entry.id) },
+                                    set: { selected in
+                                        if selected { store.selectedTrayIDs.insert(entry.id) }
+                                        else { store.selectedTrayIDs.remove(entry.id) }
+                                    }
+                                )).labelsHidden().toggleStyle(.checkbox)
+                                TrayThumbnail(url: entry.url, accent: store.highlightColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                    Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Folder")
+                                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 4)
+                                Button { store.openTrayEntry(entry) } label: { Image(systemName: "arrow.up.forward.app") }
+                                    .help("Open file")
+                                Button { store.revealTrayEntry(entry) } label: { Image(systemName: "magnifyingglass") }
+                                    .help("Show in Finder")
+                                ShareLink(item: entry.url) { Image(systemName: "square.and.arrow.up") }
+                                    .help("Share file")
+                                Button { store.removeTrayEntry(entry) } label: { Image(systemName: "xmark.circle.fill") }
+                                    .help("Remove from tray")
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+                            .draggable(entry.url)
+                            .contextMenu {
+                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
+                                Button("Copy Path") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(entry.path, forType: .string)
+                                    store.message = "Copied file path."
+                                }
+                                Button("Show in Finder") { store.revealTrayEntry(entry) }
+                                if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
+                                    Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
+                                }
+                                Button("Remove from Tray", role: .destructive) { store.removeTrayEntry(entry) }
+                            }
+                        }
+                    }
+                }.frame(height: 155)
+            }
+            HStack(spacing: 10) {
+                Text("\(store.selectedExistingTrayCount) selected · " + (store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown"))
+                    .font(.system(size: 10, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+                Spacer()
+                Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Menu {
+                    Button("Choose Folder…") { store.sendTrayFilesToFolder() }
+                    if !store.recentTrayDestinations.isEmpty {
+                        Divider()
+                        ForEach(store.recentTrayDestinations, id: \.path) { destination in
+                            Button(destination.lastPathComponent) { store.copyTrayFiles(to: destination) }
+                                .help(destination.path)
+                        }
+                        Divider()
+                        Button("Clear Recent Folders", role: .destructive) { store.clearRecentTrayDestinations() }
+                    }
+                } label: { Label("Send", systemImage: "folder") }
+                    .help("Copy selected items, or all items, to a folder")
+                    .disabled(store.trayFiles.isEmpty)
+                Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
+                    .help("Merge selected PDFs, or all tray PDFs, into a new PDF")
+                    .disabled(store.trayPDFCount < 2)
+                Menu {
+                    Button("Create Smaller JPEG Copies") { store.createSmallerJPEGCopies() }
+                    Button("Convert to PNG Copies") { store.createPNGCopies() }
+                    Button("Create PDF from Images…") { store.createPDFFromTrayImages() }
+                } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
+                    .help("Compress images, make PNG copies, or combine selected images into a PDF")
+                    .disabled(store.trayImageURLs.isEmpty)
+                Menu {
+                    Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
+                    Button("Create Animated GIF Copies…") { store.createGIFCopiesFromTrayVideos() }
+                    Button("Trim Range to MP4 Copy…") { store.trimTrayVideos() }
+                } label: { Label("Video", systemImage: "film") }
+                    .help("Create smaller MP4 copies, animated GIFs, or trimmed MP4 copies from selected videos, or all tray videos")
+                    .disabled(store.trayVideoURLs.isEmpty)
+                Menu {
+                    Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }
+                } label: { Label("Audio", systemImage: "waveform") }
+                    .help("Convert selected WAV, AIFF, or CAF audio to smaller M4A copies")
+                    .disabled(store.trayConvertibleAudioURLs.isEmpty)
+                ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
+                    .disabled(store.trayURLsForSharing.isEmpty)
+                Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
+                let visibleIDs = Set(store.visibleTrayFiles.map(\.id))
+                Button(visibleIDs.isSubset(of: store.selectedTrayIDs) ? "Deselect Visible" : "Select Visible") { store.toggleSelection(of: store.visibleTrayFiles) }.disabled(visibleIDs.isEmpty)
+                Button("Clear") { store.clearTray() }.disabled(store.trayFiles.isEmpty)
+            }.font(.system(size: 10))
+            Text("Select files and copy their references to paste them into Finder or another app. Sharing, opening, and ZIP creation leave the originals in place.").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+    private var widgets: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("System Widgets").font(.headline)
+                    Text("Local readings refresh about every two seconds.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { store.showFloatingStats?() } label: { Label("Float", systemImage: "macwindow") }
+                    .help("Keep a compact system monitor above other windows")
+                Text(store.metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            Text("Desktop widget: right-click the desktop, choose Edit Widgets, then add MacNotch · System Snapshot. It shows timestamped readings; macOS controls when the widget refreshes.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                metricCard("CPU", value: String(format: "%.0f%%", store.metrics.cpuPercent), progress: store.metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
+                metricCard("Memory", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.memoryTotal), countStyle: .memory))", progress: Double(store.metrics.memoryUsed) / Double(max(1, store.metrics.memoryTotal)), symbol: "memorychip", tint: .purple)
+            }
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Label("Network", systemImage: "wifi").font(.system(size: 10, weight: .medium)).foregroundStyle(.cyan)
+                    Label("↓ \(speed(store.metrics.downloadBytesPerSecond))", systemImage: "arrow.down")
+                    Label("↑ \(speed(store.metrics.uploadBytesPerSecond))", systemImage: "arrow.up")
+                }.font(.system(size: 12, weight: .medium, design: .rounded)).frame(maxWidth: .infinity, minHeight: 78, alignment: .leading).padding(12).modifier(GlassCard(tint: .cyan))
+                metricCard("Disk remaining", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.diskFree), countStyle: .file), progress: 1 - (Double(store.metrics.diskFree) / Double(max(1, store.metrics.diskTotal))), symbol: "internaldrive", tint: .mint)
+            }
+            if let battery = store.metrics.battery {
+                HStack(spacing: 9) {
+                    Image(systemName: battery.isCharging ? "battery.100percent.bolt" : "battery.100percent").foregroundStyle(.green)
+                    Text("Battery").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                    Text("\(battery.percent)%").font(.system(size: 11, weight: .semibold, design: .rounded))
+                    ProgressView(value: Double(battery.percent), total: 100).tint(.green).frame(maxWidth: 90)
+                    Text(battery.displayDetail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 11).frame(height: 34).modifier(GlassCard(tint: .green))
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "memorychip.fill").foregroundStyle(.purple)
+                Text("Top RAM app").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                Text(store.metrics.topProcess ?? "Sampling…").font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 2)
+                Text(store.metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
+            }.padding(.horizontal, 12).frame(height: 36).modifier(GlassCard(tint: .purple))
+            Text("CPU and memory use native macOS counters. The top app is sampled from process resident memory every 10 seconds. Network uses the primary en* adapter (typically Wi‑Fi or Ethernet). Disk free space is for your home volume.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    private var liveActivities: some View {
+        LiveActivitiesView(store: store,
+                          calendar: store.calendarEventsController,
+                          tasks: store.calendarTasksController)
+    }
+    private var recordingControls: some View {
+        ScreenRecordingControls(recorder: store.recorder, includeSystemAudio: Binding(
+            get: { store.includeSystemAudio },
+            set: { value in store.includeSystemAudio = value; UserDefaults.standard.set(value, forKey: "macNotchRecordSystemAudio") }
+        ), includeMicrophone: Binding(
+            get: { store.includeMicrophone },
+            set: { value in store.includeMicrophone = value; UserDefaults.standard.set(value, forKey: "macNotchRecordMicrophone") }
+        ))
+    }
+    private func activityRow(_ title: String, detail: String, symbol: String, tint: Color, active: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(tint).frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 10, weight: .semibold))
+                Text(detail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Circle().fill(active ? tint : .gray.opacity(0.55)).frame(width: 6, height: 6)
+        }.padding(.horizontal, 11).padding(.vertical, 9).modifier(GlassCard(tint: tint))
+    }
+    private func metricCard(_ title: String, value: String, progress: Double, symbol: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label(title, systemImage: symbol).font(.system(size: 10, weight: .medium)).foregroundStyle(tint)
+            Text(value).font(.system(size: 14, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.75)
+            ProgressView(value: min(1, max(0, progress))).tint(tint)
+        }.frame(maxWidth: .infinity, minHeight: 78, alignment: .leading).padding(12).modifier(GlassCard(tint: tint))
+    }
+    private func speed(_ bytesPerSecond: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytesPerSecond), countStyle: .memory) + "/s"
+    }
+    private func chooseTrayFiles() {
+        let panel = NSOpenPanel()
+        panel.title = "Add files to MacNotch File Tray"
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = false
+        if panel.runModal() == .OK { store.addTrayURLs(panel.urls) }
+    }
+    private func acceptDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        let type = UTType.fileURL.identifier
+        let matching = providers.filter { $0.hasItemConformingToTypeIdentifier(type) }
+        guard !matching.isEmpty else { return false }
+        for provider in matching {
+            provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
+                let url = (item as? URL)
+                    ?? (item as? NSURL).map { $0 as URL }
+                    ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                    ?? (item as? String).flatMap(URL.init(string:))
+                guard let url, url.isFileURL else { return }
+                DispatchQueue.main.async {
+                    store.addTrayURLs([url])
+                    store.expanded = true
+                    store.pinned = true
+                    store.resize?()
+                }
+            }
+        }
+        return true
+    }
+    private var gemini: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Ask Gemini…", text: $store.chat, axis: .vertical).lineLimit(2...4)
+            HStack {
+                Button("Send") { store.ask() }.disabled(store.chatBusy || store.chat.isEmpty)
+                if store.chatBusy { ProgressView().controlSize(.small); Button("Cancel") { store.cancelChat() } }
+                Button("Clear") { store.clearChat() }
+                Spacer(); Button("Open Gemini") { NSWorkspace.shared.open(URL(string: "https://gemini.google.com")!) }
+            }
+            ScrollView { Text(store.answer).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 100)
+            HStack {
+                Button("Copy Answer") { copyText(store.answer) }.disabled(store.answer.isEmpty)
+                Spacer()
+                if let i = store.inputTokens, let o = store.outputTokens {
+                    Text("Last: \(i) in · \(o) out | Session: \(store.sessionTokens)").font(.system(size: 10, design: .monospaced)).foregroundStyle(.cyan)
+                }
+            }
+            Text("Usage is for Gemini API requests in this app. Account remaining: unavailable.").font(.caption2).foregroundStyle(.secondary)
+            Text("Send shares your typed question with Google using your Gemini API key. Configure it in Settings.").font(.caption2)
+        }
+    }
+    private var focus: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(store.focusEnd == nil ? "Ready for your next session." : store.focusPhase.title + " time remaining").font(.headline)
+            Text(String(format: "%02d:%02d", store.remaining / 60, store.remaining % 60)).font(.system(size: 36, weight: .semibold, design: .rounded)).monospacedDigit()
+            HStack {
+                Button("Start Focus · 25 min") { store.startFocus() }
+                Button("Start Break · 5 min") { store.startShortBreak() }
+                Button("Stop") { store.stopFocus() }
+            }
+            Text("Cycle \(store.focusCyclePosition)/4 · every fourth focus switches to a 15-minute break")
+                .font(.caption2).foregroundStyle(.secondary)
+            HStack {
+                Button("MacPulse Glance") { store.refreshPulse() }
+                Button("Review High-RAM Apps") {
+                    if !NSWorkspace.shared.open(URL(string: "macpulse://clean")!) { store.message = "Install MacPulse to use RAM review." }
+                }
+            }
+            if let pulse = store.pulse {
+                Text("RAM \(ByteCountFormatter.string(fromByteCount: Int64(clamping: pulse.memoryUsed), countStyle: .binary)) · CPU \(pulse.cpu.map { String(format: "%.0f%%", $0) } ?? "—")").font(.caption)
+                HStack { Text("Top app: \(pulse.topApp ?? "Unavailable")").lineLimit(1); Text(pulse.date, style: .time) }.font(.caption2)
+            }
+        }
+    }
+    private var teleprompter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Teleprompter", systemImage: "text.alignleft").font(.headline)
+                Spacer()
+                Button { store.showTeleprompter?() } label: { Label("Float", systemImage: "macwindow") }
+            }
+            Text("Your script stays on this Mac. Open the floating reader to scroll it above other apps.")
+                .font(.caption).foregroundStyle(.secondary)
+            TextEditor(text: Binding(get: { store.teleprompterScript }, set: { store.setTeleprompterScript($0) }))
+                .font(.system(size: 12)).scrollContentBackground(.hidden).padding(8)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12)).frame(height: 115)
+            HStack {
+                Text("Scroll speed").font(.caption)
+                Slider(value: Binding(get: { store.teleprompterSpeed }, set: { store.setTeleprompterSpeed($0) }), in: 10...120)
+                Text("\(Int(store.teleprompterSpeed)) pt/s").font(.system(size: 9, design: .monospaced)).frame(width: 55)
+            }
+            Toggle("Mirror text for a teleprompter mirror", isOn: Binding(get: { store.teleprompterMirrored }, set: { store.setTeleprompterMirrored($0) }))
+                .font(.caption)
+            HStack {
+                Button("Open Floating Reader · ⌃⌥P") { store.showTeleprompter?() }.buttonStyle(.borderedProminent).tint(store.highlightColor)
+                Button("Reset") { store.resetTeleprompter() }
+            }
+        }
+        .padding(12).modifier(GlassCard(tint: store.highlightColor))
+    }
+    private var notes: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Quick note", systemImage: "note.text").font(.headline)
+                Spacer()
+                Button("Shortcuts") { NSWorkspace.shared.open(URL(string: "shortcuts://")!) }
+                Button("Siri") { store.openSiri() }
+            }
+            TextEditor(text: $store.note).scrollContentBackground(.hidden).padding(12)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16)).frame(height: 180)
+                .onChange(of: store.note) { _, value in UserDefaults.standard.set(String(value.prefix(50000)), forKey: "quickNote") }
+            Text("Saved locally on this Mac.").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+}
+
+private struct AppLauncherView: View {
+    @ObservedObject var store: AppLauncherStore
+    @State private var selectedAppID: String?
+
+    private var visibleApps: [LaunchableApp] { store.visibleApplications }
+    private func moveSelection(_ direction: Int) {
+        selectedAppID = AppLauncherNavigation.nextID(currentID: selectedAppID, direction: direction, ids: visibleApps.map(\.id))
+    }
+    private func launchSelectedApp() {
+        guard let selectedAppID, let app = visibleApps.first(where: { $0.id == selectedAppID }) else { return }
+        store.launch(app)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                TextField("Search apps by name · ↑ ↓ to move · Return to open", text: $store.search)
+                    .textFieldStyle(.roundedBorder)
+                    .onKeyPress(.downArrow) { moveSelection(1); return .handled }
+                    .onKeyPress(.upArrow) { moveSelection(-1); return .handled }
+                    .onKeyPress(.return) { launchSelectedApp(); return .handled }
+                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                    .help("Refresh installed apps")
+            }
+            HStack {
+                Toggle("Favorites only", isOn: $store.favoritesOnly).toggleStyle(.switch).controlSize(.small)
+                Spacer()
+                Text("\(visibleApps.count) apps").font(.caption2).foregroundStyle(.secondary)
+            }
+            if visibleApps.isEmpty {
+                ContentUnavailableView(store.favoritesOnly && store.search.isEmpty ? "No favorites yet" : "No matching apps",
+                                       systemImage: "app.dashed",
+                                       description: Text(store.favoritesOnly && store.search.isEmpty ? "Switch off Favorites only, then pin apps with the star." : "Try another app name."))
+                    .frame(maxWidth: .infinity, minHeight: 150)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(visibleApps) { app in
+                            HStack(spacing: 8) {
+                                Image(nsImage: NSWorkspace.shared.icon(forFile: app.url.path))
+                                    .resizable().frame(width: 25, height: 25)
+                                Button { store.launch(app) } label: {
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(app.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                        Text(app.bundleIdentifier ?? app.url.deletingLastPathComponent().path)
+                                            .font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(1)
+                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                }.buttonStyle(.plain).help("Open \(app.name)")
+                                Button { store.toggleFavorite(app) } label: {
+                                    Image(systemName: store.favoriteIDs.contains(app.id) ? "star.fill" : "star")
+                                        .foregroundStyle(store.favoriteIDs.contains(app.id) ? .yellow : .secondary)
+                                }.buttonStyle(.plain).help(store.favoriteIDs.contains(app.id) ? "Remove favorite" : "Add to favorites")
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(selectedAppID == app.id ? Color.cyan.opacity(0.14) : .white.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                }.frame(maxHeight: 195)
+            }
+            Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .onChange(of: visibleApps.map(\.id)) { _, ids in
+            if !ids.contains(selectedAppID ?? "") { selectedAppID = ids.first }
+        }
+        .padding(12).modifier(GlassCard(tint: .cyan))
+    }
+}
+
+private struct AudioControlView: View {
+    @ObservedObject var store: AudioControlStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Sound Output", systemImage: "speaker.wave.2.fill").font(.headline)
+                Spacer()
+                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh sound devices")
+            }
+            Picker("Output device", selection: Binding(
+                get: { store.currentDeviceID },
+                set: { if let id = $0 { store.selectOutput(id) } }
+            )) {
+                if store.devices.isEmpty { Text("No output devices").tag(Optional<AudioDeviceID>.none) }
+                ForEach(store.devices) { device in
+                    Text(device.name + (device.isDefault ? " · Current" : ""))
+                        .tag(Optional(device.id))
+                }
+            }
+            .labelsHidden().disabled(store.devices.count < 2)
+            HStack(spacing: 10) {
+                Image(systemName: store.isMuted ? "speaker.slash.fill" : "speaker.wave.1.fill").frame(width: 20)
+                Slider(value: Binding(get: { store.volume }, set: { store.setVolume($0) }), in: 0...1)
+                    .disabled(!store.volumeAvailable)
+                    .accessibilityLabel("Output volume")
+                Text(store.volumeAvailable ? "\(Int(store.volume * 100))%" : "—")
+                    .font(.system(size: 10, design: .monospaced)).frame(width: 36, alignment: .trailing)
+                Button { store.toggleMute() } label: {
+                    Image(systemName: store.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                }
+                .disabled(!store.muteAvailable)
+                .help(store.isMuted ? "Unmute output" : "Mute output")
+            }
+            Text(store.message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("These controls use Core Audio and affect only the selected macOS output. Devices that do not expose software volume keep their hardware controls. No audio is recorded or transmitted here.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14).modifier(GlassCard(tint: .orange))
+    }
+}
+
+
+private struct LiveActivitiesView: View {
+    @ObservedObject var store: NotchStore
+    @ObservedObject var calendar: CalendarEventsController
+    @ObservedObject var tasks: CalendarTasksController
+
+    private var calendarDetail: String {
+        guard calendar.hasLoaded else { return "Load events in Calendar & Tasks" }
+        let now = Date()
+        guard let event = calendar.events.first(where: { $0.end > now }) else { return "No upcoming events" }
+        let when = event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened)
+        return event.start <= now ? "Now · \(event.title)" : "\(when) · \(event.title)"
+    }
+
+    private var reminderDetail: String {
+        guard tasks.hasLoaded else { return "Load reminders in Calendar & Tasks" }
+        guard let reminder = tasks.reminders.first else { return "No incomplete reminders" }
+        let due = reminder.dueDate.map { $0.formatted(date: .abbreviated, time: .omitted) }
+        return ([reminder.title] + (due.map { [$0] } ?? [])).joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Live Activities").font(.headline)
+                    Text("A live view of the tasks MacNotch currently tracks.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Circle().fill(.green).frame(width: 7, height: 7)
+                Text("LIVE").font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(.green)
+            }
+            ScrollView {
+                VStack(spacing: 7) {
+                    row("Music", detail: store.playing ? "\(store.track) · \(store.artist)" : (store.musicEnabled ? "Player connected · nothing playing" : "Not connected"), symbol: "music.note", tint: .green, active: store.playing)
+                    row("Focus", detail: store.focusEnd.map { _ in "\(store.focusPhase.title) · \(store.remaining / 60):\(String(format: "%02d", store.remaining % 60)) remaining" } ?? "No timer running", symbol: "timer", tint: .orange, active: store.focusEnd != nil)
+                    row("Next event", detail: calendarDetail, symbol: "calendar", tint: .cyan, active: calendar.hasLoaded && calendar.events.contains { $0.end > Date() })
+                    row("Next reminder", detail: reminderDetail, symbol: "checklist", tint: .yellow, active: tasks.hasLoaded && !tasks.reminders.isEmpty)
+                    row("File Tray", detail: store.trayFiles.isEmpty ? "Ready for files" : "\(store.trayFiles.count) file\(store.trayFiles.count == 1 ? "" : "s") waiting in your tray", symbol: "tray.full.fill", tint: store.highlightColor, active: !store.trayFiles.isEmpty)
+                    row("Screen recording", detail: store.recording ? "Recording · \(String(format: "%d:%02d", store.recordingSeconds / 60, store.recordingSeconds % 60))" : "Not recording", symbol: "record.circle", tint: .red, active: store.recording)
+                    row("Frontmost app", detail: store.activeApp.isEmpty ? "Unavailable" : store.activeApp, symbol: "macwindow", tint: .cyan, active: true)
+                }
+            }.frame(height: 255)
+            Text("Third-party calls, downloads, and system-wide activity feeds are not yet integrated. This view only reports state MacNotch can currently observe.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func row(_ title: String, detail: String, symbol: String, tint: Color, active: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(tint).frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 10, weight: .semibold))
+                Text(detail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Circle().fill(active ? tint : .gray.opacity(0.55)).frame(width: 6, height: 6)
+        }.padding(.horizontal, 11).padding(.vertical, 9).modifier(GlassCard(tint: tint))
+    }
+}
+
+private struct FloatingPlayerView: View {
+    @ObservedObject var store: NotchStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Now Playing", systemImage: "waveform").font(.headline)
+                Spacer()
+                Picker("Player", selection: $store.player) {
+                    Text("Spotify").tag("Spotify")
+                    Text("Music").tag("Music")
+                }
+                .frame(width: 150)
+                .onChange(of: store.player) { _, value in
+                    UserDefaults.standard.set(value, forKey: "mediaPlayer")
+                    store.position = 0
+                    store.duration = 0
+                    store.refreshMusic()
+                }
+                Button {
+                    store.lyricsExpanded.toggle()
+                } label: {
+                    Label(store.lyricsExpanded ? "Hide Lyrics" : "Lyrics", systemImage: "text.quote")
+                }
+                .disabled(store.player != "Music" || store.lyrics.isEmpty)
+                .help("Lyrics are shown when Apple Music provides them for the current track")
+                Button {
+                    store.playlistExpanded.toggle()
+                    if store.playlistExpanded { store.loadMusicPlaylist() }
+                } label: {
+                    Label("Playlist", systemImage: "list.number")
+                }
+                .disabled(store.player != "Music" || !store.musicEnabled)
+                .help("Browse the first 15 tracks in Apple Music's current playlist")
+            }
+            HStack(spacing: 14) {
+                Group {
+                    if let artwork = store.albumArtwork {
+                        Image(nsImage: artwork).resizable().scaledToFill()
+                    } else {
+                        Image(systemName: store.playing ? "waveform" : "music.note")
+                            .font(.system(size: 30, weight: .medium)).foregroundStyle(.green)
+                    }
+                }
+                .frame(width: 64, height: 64).background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16)).clipShape(RoundedRectangle(cornerRadius: 16))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(store.track).font(.title3.bold()).lineLimit(2)
+                    Text(store.artist.isEmpty ? store.player : store.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                HStack(spacing: 18) {
+                    Button { store.media("previous track") } label: { Image(systemName: "backward.fill") }.help("Previous track")
+                    Button { store.media("playpause") } label: {
+                        Image(systemName: store.playing ? "pause.fill" : "play.fill")
+                            .font(.system(size: 17, weight: .bold))
+                            .frame(width: 44, height: 44)
+                            .background(.white.opacity(0.12), in: Circle())
+                    }.buttonStyle(.plain).help("Play or pause")
+                    Button { store.media("next track") } label: { Image(systemName: "forward.fill") }.help("Next track")
+                }
+                .buttonStyle(.plain)
+            }
+            VStack(spacing: 4) {
+                Slider(value: Binding(get: { store.position }, set: { store.seek($0) }), in: 0...max(1, store.duration))
+                    .disabled(!store.musicEnabled || store.duration <= 0)
+                HStack {
+                    Text(clock(store.position))
+                    Spacer()
+                    Text(clock(store.duration))
+                }.font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            if store.lyricsExpanded {
+                ScrollView {
+                    Text(store.lyrics).font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                }
+                .frame(height: 110).padding(10).background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
+            if store.playlistExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    if store.playlistLoading {
+                        ProgressView("Loading playlist…").controlSize(.small)
+                    } else if store.musicPlaylistRows.isEmpty {
+                        Text(store.playlistMessage).font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 3) {
+                                ForEach(store.musicPlaylistRows) { entry in
+                                    Button { store.playMusicPlaylistEntry(entry) } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: entry.isCurrent ? "waveform" : "play.fill")
+                                                .font(.system(size: 9)).foregroundStyle(entry.isCurrent ? .green : .secondary)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(entry.title).font(.system(size: 10, weight: entry.isCurrent ? .semibold : .regular)).lineLimit(1)
+                                                Text(entry.artist).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                                            }
+                                            Spacer()
+                                            if entry.isCurrent { Text("NOW").font(.system(size: 8, weight: .bold)).foregroundStyle(.green) }
+                                        }.padding(.horizontal, 7).padding(.vertical, 4).contentShape(Rectangle())
+                                    }.buttonStyle(.plain)
+                                }
+                            }
+                        }.frame(height: 128)
+                        Text(store.playlistMessage).font(.system(size: 9)).foregroundStyle(.secondary)
+                    }
+                }.padding(9).background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
+            if !store.musicMessage.isEmpty { Text(store.musicMessage).font(.caption2).foregroundStyle(.orange) }
+            if !store.musicEnabled { Button("Connect to \(store.player)") { store.connectMusic() }.buttonStyle(.borderedProminent) }
+        }
+        .padding(18)
+        .frame(minWidth: 400, minHeight: 215)
+        .background(NotchGlass())
+    }
+
+    private func clock(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "—" }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+}
+
+private struct FloatingStatsView: View {
+    @ObservedObject var store: NotchStore
+
+    private var metrics: MacMetrics { store.metrics }
+    private var memoryFraction: Double { Double(metrics.memoryUsed) / Double(max(1, metrics.memoryTotal)) }
+    private var diskFraction: Double { Double(metrics.diskFree) / Double(max(1, metrics.diskTotal)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "waveform.path.ecg").foregroundStyle(store.highlightColor)
+                Text("System Monitor").font(.system(size: 13, weight: .semibold))
+                Circle().fill(.green).frame(width: 6, height: 6)
+                Spacer()
+                Text(metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            let visible = store.visibleMonitorWidgets
+            if visible.isEmpty {
+                Label("All cards are hidden. Choose cards in Settings.", systemImage: "slider.horizontal.3")
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 70)
+            }
+            if visible.contains(.cpu) || visible.contains(.memory) {
+                HStack(spacing: 8) {
+                    if visible.contains(.cpu) {
+                        statsTile("CPU", value: String(format: "%.0f%%", metrics.cpuPercent), fraction: metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
+                    }
+                    if visible.contains(.memory) {
+                        statsTile("RAM", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.memoryTotal), countStyle: .memory))", fraction: memoryFraction, symbol: "memorychip", tint: .purple)
+                    }
+                }
+            }
+            if visible.contains(.network) || visible.contains(.disk) {
+                HStack(spacing: 8) {
+                    if visible.contains(.network) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label("Network", systemImage: "wifi").font(.system(size: 9, weight: .medium)).foregroundStyle(.cyan)
+                            HStack(spacing: 10) {
+                                Label("↓ \(speed(metrics.downloadBytesPerSecond))", systemImage: "arrow.down")
+                                Label("↑ \(speed(metrics.uploadBytesPerSecond))", systemImage: "arrow.up")
+                            }.font(.system(size: 10, weight: .medium, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
+                        }.frame(maxWidth: .infinity, minHeight: 55, alignment: .leading).padding(9).modifier(GlassCard(tint: .cyan))
+                    }
+                    if visible.contains(.disk) {
+                        statsTile("Disk free", value: ByteCountFormatter.string(fromByteCount: Int64(clamping: metrics.diskFree), countStyle: .file), fraction: diskFraction, symbol: "internaldrive", tint: .mint)
+                    }
+                }
+            }
+            if visible.contains(.topProcess) {
+                HStack(spacing: 6) {
+                    Image(systemName: "memorychip.fill").foregroundStyle(.purple)
+                    Text("Top RAM").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    Text(metrics.topProcess ?? "Sampling…").font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 2)
+                    Text(metrics.topProcessBytes.map { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .memory) } ?? "—")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced)).foregroundStyle(.purple)
+                }.padding(.horizontal, 9).frame(height: 29).modifier(GlassCard(tint: .purple))
+            }
+            if visible.contains(.trends) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 12) {
+                        Text("Last minute").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                        Text("CPU").foregroundStyle(.cyan)
+                        Text("RAM").foregroundStyle(.purple)
+                        Spacer()
+                    }.font(.system(size: 8, weight: .semibold))
+                    MetricTrendGraph(points: store.metricHistory)
+                        .frame(height: 32)
+                        .accessibilityLabel("CPU and memory usage history over the last minute")
+                }.padding(.horizontal, 9).padding(.vertical, 6).modifier(GlassCard(tint: .cyan))
+            }
+            if visible.contains(.battery), let battery = metrics.battery {
+                HStack(spacing: 7) {
+                    Image(systemName: battery.isCharging ? "battery.100percent.bolt" : "battery.100percent").foregroundStyle(.green)
+                    Text("Battery").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    Text("\(battery.percent)%").font(.system(size: 10, weight: .semibold, design: .rounded))
+                    ProgressView(value: Double(battery.percent), total: 100).tint(.green).frame(maxWidth: 75)
+                    Text(battery.displayDetail).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 9).frame(height: 27).modifier(GlassCard(tint: .green))
+            }
+        }
+        .padding(12).frame(minWidth: 330, minHeight: 190)
+        .background(NotchGlass())
+    }
+
+    private func statsTile(_ title: String, value: String, fraction: Double, symbol: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: symbol).font(.system(size: 9, weight: .medium)).foregroundStyle(tint)
+            Text(value).font(.system(size: 11, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.72)
+            ProgressView(value: min(1, max(0, fraction))).tint(tint)
+        }.frame(maxWidth: .infinity, minHeight: 55, alignment: .leading).padding(9).modifier(GlassCard(tint: tint))
+    }
+
+    private func speed(_ bytesPerSecond: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: bytesPerSecond), countStyle: .memory) + "/s"
+    }
+}
+
+private struct MetricTrendGraph: View {
+    let points: [SystemMetricPoint]
+
+    var body: some View {
+        Canvas { context, size in
+            guard points.count > 1, size.width > 0, size.height > 0 else { return }
+            draw(points.map(\.cpuPercent), color: .cyan, in: &context, size: size)
+            draw(points.map(\.memoryPercent), color: .purple, in: &context, size: size)
+        }
+    }
+
+    private func draw(_ values: [Double], color: Color, in context: inout GraphicsContext, size: CGSize) {
+        guard values.count > 1 else { return }
+        var path = Path()
+        for (index, value) in values.enumerated() {
+            let x = CGFloat(index) / CGFloat(values.count - 1) * size.width
+            let y = size.height - CGFloat(min(100, max(0, value))) / 100 * size.height
+            if index == 0 { path.move(to: CGPoint(x: x, y: y)) }
+            else { path.addLine(to: CGPoint(x: x, y: y)) }
+        }
+        context.stroke(path, with: .color(color.opacity(0.9)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+    }
+}
+
+private struct FloatingTrayView: View {
+    @ObservedObject var store: NotchStore
+    @State private var targeted = false
+    @State private var previewItem: TrayPreviewItem?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("File Shelf", systemImage: "tray.full.fill").font(.headline).foregroundStyle(store.highlightColor)
+                Spacer()
+                Button { chooseFiles() } label: { Label("Add", systemImage: "plus") }
+            }
+            Text("Keep files here while you work in other apps. Drag items out to hand them off.")
+                .font(.caption).foregroundStyle(.secondary)
+            if store.trayFiles.isEmpty {
+                Label("Drop files here", systemImage: "arrow.down.to.line.compact")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .background(store.highlightColor.opacity(targeted ? 0.24 : 0.10), in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(store.highlightColor.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+            } else {
+                TextField("Search files or folders", text: $store.traySearch)
+                    .textFieldStyle(.roundedBorder)
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        if store.visibleTrayFiles.isEmpty {
+                            VStack(spacing: 5) {
+                                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                                Text("No files match this search").font(.caption).foregroundStyle(.secondary)
+                            }.frame(maxWidth: .infinity, minHeight: 80)
+                        }
+                        ForEach(store.visibleTrayFiles) { entry in
+                            HStack(spacing: 8) {
+                                Toggle("Select \(entry.name)", isOn: Binding(
+                                    get: { store.selectedTrayIDs.contains(entry.id) },
+                                    set: { selected in
+                                        if selected { store.selectedTrayIDs.insert(entry.id) }
+                                        else { store.selectedTrayIDs.remove(entry.id) }
+                                    }
+                                )).labelsHidden().toggleStyle(.checkbox)
+                                TrayThumbnail(url: entry.url, accent: store.highlightColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name).lineLimit(1).font(.system(size: 11, weight: .medium))
+                                    Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Folder")
+                                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 2)
+                                Button { previewItem = TrayPreviewItem(url: entry.url) } label: { Image(systemName: "eye") }
+                                    .help("Quick Look")
+                                Button { store.openTrayEntry(entry) } label: { Image(systemName: "arrow.up.forward.app") }.help("Open")
+                                Button { store.removeTrayEntry(entry) } label: { Image(systemName: "xmark.circle") }.help("Remove")
+                            }
+                            .buttonStyle(.plain).padding(8)
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                            .draggable(entry.url)
+                            .contextMenu {
+                                Button("Quick Look") { previewItem = TrayPreviewItem(url: entry.url) }
+                                if UTType(filenameExtension: entry.url.pathExtension)?.conforms(to: .image) == true {
+                                    Button("Create Smaller JPEG Copy…") { store.createSmallerJPEGCopy(from: entry.url) }
+                                }
+                                Button("Show in Finder") { store.revealTrayEntry(entry) }
+                                Button("Remove from Tray", role: .destructive) { store.removeTrayEntry(entry) }
+                            }
+                        }
+                    }
+                }
+                .frame(minHeight: 100, maxHeight: 260)
+            }
+            HStack(spacing: 8) {
+                Text("\(store.selectedExistingTrayCount) selected · " + (store.traySearch.isEmpty ? "\(store.trayFiles.count) items" : "\(store.visibleTrayFiles.count) of \(store.trayFiles.count) shown")).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Copy Selected") { store.copySelectedTrayFiles() }.disabled(store.selectedTrayIDs.isEmpty)
+                Menu {
+                    Button("Choose Folder…") { store.sendTrayFilesToFolder() }
+                    if !store.recentTrayDestinations.isEmpty {
+                        Divider()
+                        ForEach(store.recentTrayDestinations, id: \.path) { destination in
+                            Button(destination.lastPathComponent) { store.copyTrayFiles(to: destination) }
+                                .help(destination.path)
+                        }
+                        Divider()
+                        Button("Clear Recent Folders", role: .destructive) { store.clearRecentTrayDestinations() }
+                    }
+                } label: { Label("Send", systemImage: "folder") }
+                    .help("Copy selected items, or all items, to a folder")
+                    .disabled(store.trayFiles.isEmpty)
+                Button { store.mergeTrayPDFs() } label: { Label("Merge", systemImage: "doc.on.doc") }
+                    .help("Merge selected PDFs, or all tray PDFs, into a new PDF")
+                    .disabled(store.trayPDFCount < 2)
+                Menu {
+                    Button("Create Smaller JPEG Copies") { store.createSmallerJPEGCopies() }
+                    Button("Convert to PNG Copies") { store.createPNGCopies() }
+                    Button("Create PDF from Images…") { store.createPDFFromTrayImages() }
+                } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
+                    .help("Compress images, make PNG copies, or combine selected images into a PDF")
+                    .disabled(store.trayImageURLs.isEmpty)
+                Menu {
+                    Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
+                    Button("Create Animated GIF Copies…") { store.createGIFCopiesFromTrayVideos() }
+                    Button("Trim Range to MP4 Copy…") { store.trimTrayVideos() }
+                } label: { Label("Video", systemImage: "film") }
+                    .help("Create smaller MP4 copies, animated GIFs, or trimmed MP4 copies from selected videos, or all tray videos")
+                    .disabled(store.trayVideoURLs.isEmpty)
+                Menu {
+                    Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }
+                } label: { Label("Audio", systemImage: "waveform") }
+                    .help("Convert selected WAV, AIFF, or CAF audio to smaller M4A copies")
+                    .disabled(store.trayConvertibleAudioURLs.isEmpty)
+                ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
+                    .disabled(store.trayURLsForSharing.isEmpty)
+                let visibleIDs = Set(store.visibleTrayFiles.map(\.id))
+                Button(visibleIDs.isSubset(of: store.selectedTrayIDs) ? "Deselect Visible" : "Select Visible") { store.toggleSelection(of: store.visibleTrayFiles) }.disabled(visibleIDs.isEmpty)
+            }.font(.system(size: 10))
+            Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+        }
+        .padding(16).frame(width: 360)
+        .background(NotchGlass().overlay(Color.black.opacity(0.68)))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(targeted ? store.highlightColor : .clear, lineWidth: 2))
+        .onDrop(of: [UTType.fileURL], isTargeted: $targeted, perform: acceptDroppedFiles)
+        .sheet(item: $previewItem) { item in
+            VStack(spacing: 8) {
+                HStack {
+                    Text(item.url.lastPathComponent).font(.headline).lineLimit(1)
+                    Spacer()
+                    Button("Done") { previewItem = nil }
+                }
+                QuickLookPreviewView(url: item.url)
+            }
+            .padding(12)
+            .frame(minWidth: 520, minHeight: 420)
+        }
+    }
+
+    private func chooseFiles() {
+        let panel = NSOpenPanel()
+        panel.title = "Add files to MacNotch File Shelf"
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        if panel.runModal() == .OK { store.addTrayURLs(panel.urls) }
+    }
+
+    private func acceptDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        let matching = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !matching.isEmpty else { return false }
+        for provider in matching {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url = (item as? URL)
+                    ?? (item as? NSURL).map { $0 as URL }
+                    ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                guard let url, url.isFileURL else { return }
+                DispatchQueue.main.async { store.addTrayURLs([url]) }
+            }
+        }
+        return true
+    }
+}
+
+private struct CalendarEventsView: View {
+    @ObservedObject var controller: CalendarEventsController
+    @ObservedObject var tasks: CalendarTasksController
+    init(store: NotchStore) {
+        controller = store.calendarEventsController
+        tasks = store.calendarTasksController
+    }
+    @State private var section = "Events"
+    @State private var composer: CalendarComposer?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Calendar & Tasks").font(.headline)
+                    Text(section == "Events" ? "Upcoming events · next 7 days" : "Incomplete reminders · next 30 days")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    Task {
+                        if section == "Events" { await controller.loadUpcomingEvents() }
+                        else { await tasks.loadUpcomingReminders() }
+                    }
+                } label: {
+                    let busy = section == "Events" ? controller.busy : tasks.busy
+                    let loaded = section == "Events" ? controller.hasLoaded : tasks.hasLoaded
+                    Label(busy ? "Loading…" : (loaded ? "Refresh" : (section == "Events" ? "Load Events" : "Load Reminders")),
+                          systemImage: section == "Events" ? "calendar.badge.clock" : "checklist")
+                }.disabled(section == "Events" ? controller.busy : tasks.busy).buttonStyle(.borderedProminent).tint(.cyan)
+                Button { composer = section == "Events" ? .event : .reminder } label: { Label("New", systemImage: "plus") }
+                    .help(section == "Events" ? "Create a calendar event" : "Create a reminder")
+                    .disabled(section == "Events" ? controller.busy : tasks.busy)
+            }
+            Picker("Calendar section", selection: $section) {
+                Text("Events").tag("Events")
+                Text("Reminders").tag("Reminders")
+            }.pickerStyle(.segmented).frame(maxWidth: 230)
+            section == "Events" ? AnyView(eventList) : AnyView(reminderList)
+            Text(section == "Events" ? controller.message : tasks.message)
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Button("Privacy Settings") {
+                openPrivacy(section == "Events" ? "Privacy_Calendars" : "Privacy_Reminders")
+            }.font(.system(size: 10))
+        }.padding(14).modifier(GlassCard(tint: .cyan))
+            .sheet(item: $composer) { composer in
+                switch composer {
+                case .event: NewCalendarEventSheet(controller: controller)
+                case .reminder: NewReminderSheet(tasks: tasks)
+                }
+            }
+    }
+
+    @ViewBuilder private var eventList: some View {
+        if !controller.events.isEmpty {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(controller.events) { event in
+                        HStack(spacing: 10) {
+                            VStack(spacing: 2) {
+                                Text(event.start.formatted(.dateTime.day())).font(.system(size: 15, weight: .semibold, design: .rounded))
+                                Text(event.start.formatted(.dateTime.month(.abbreviated))).font(.system(size: 8, weight: .medium)).foregroundStyle(.cyan)
+                            }.frame(width: 34)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(event.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                HStack(spacing: 5) {
+                                    Text(event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened))
+                                    Text("·")
+                                    Text(event.calendarTitle).lineLimit(1)
+                                }.font(.system(size: 9)).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }.padding(8).background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }.frame(maxHeight: 220)
+        } else if controller.hasLoaded {
+            ContentUnavailableView("No upcoming events", systemImage: "calendar", description: Text("Nothing is scheduled in the next seven days."))
+                .frame(height: 110)
+        } else {
+            ContentUnavailableView("Your calendar, at a glance", systemImage: "calendar", description: Text("Load events when you’re ready. Calendar access is requested only when you press the button."))
+                .frame(height: 120)
+        }
+    }
+
+    @ViewBuilder private var reminderList: some View {
+        if !tasks.reminders.isEmpty {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(tasks.reminders) { reminder in
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(reminder.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                Text([reminder.dueDate?.formatted(date: .abbreviated, time: .omitted), reminder.listTitle].compactMap { $0 }.joined(separator: " · "))
+                                    .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Spacer(minLength: 4)
                             Button { tasks.complete(reminder) } label: { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
@@ -1811,7 +3128,6 @@ private struct DisplayIslandView: View {
                     islandAction("Main Notch", symbol: "arrow.up.to.line") { store.showMainNotch?() }
                 }
             }
-
         }
         .padding(.horizontal, 11).padding(.vertical, 8)
         .frame(width: expanded ? 460 : 220, height: expanded ? 124 : 38)
