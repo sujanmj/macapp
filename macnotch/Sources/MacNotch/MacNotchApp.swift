@@ -206,6 +206,12 @@ final class NotchStore: ObservableObject {
                 && (UTType(filenameExtension: $0.pathExtension)?.conforms(to: .image) == true)
         }
     }
+    var trayVideoURLs: [URL] {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        return entries.map(\.url).filter {
+            FileManager.default.fileExists(atPath: $0.path) && VideoFileActions.isSupportedVideo($0)
+        }
+    }
     @Published var metrics = MacMetrics()
     @Published var metricHistory: [SystemMetricPoint] = []
     private var metricHistoryStore = SystemMetricHistory()
@@ -392,6 +398,32 @@ final class NotchStore: ObservableObject {
     }
     func createPNGCopies() {
         exportTrayImages(asPNG: true)
+    }
+    func compressTrayVideos() {
+        let sources = trayVideoURLs
+        guard !sources.isEmpty else { message = "Select existing MOV, MP4, or M4V videos in the tray first."; return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Folder for Compressed Video Copies"
+        panel.prompt = "Save Copies"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let directory = panel.url else { message = "Video compression canceled."; return }
+        message = "Compressing \(sources.count) video\(sources.count == 1 ? "" : "s")… Originals remain unchanged."
+        Task.detached(priority: .userInitiated) { [store = self, sources, directory] in
+            let result = await VideoFileActions.compress(sources, into: directory)
+            await MainActor.run {
+                if result.outputs.isEmpty {
+                    store.message = "No compressed videos were created. " + (result.failures.first?.1 ?? "Check the selected files.")
+                } else if result.failures.isEmpty {
+                    store.message = "Created \(result.outputs.count) compressed MP4 copies. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                } else {
+                    store.message = "Created \(result.outputs.count) compressed copies; \(result.failures.count) video(s) could not be compressed. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                }
+            }
+        }
     }
     private func exportTrayImages(asPNG: Bool) {
         let sources = trayImageURLs
@@ -1292,6 +1324,11 @@ struct NotchView: View {
                 } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
                     .help("Compress images or make PNG copies of selected images, or all tray images")
                     .disabled(store.trayImageURLs.isEmpty)
+                Menu {
+                    Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
+                } label: { Label("Video", systemImage: "film") }
+                    .help("Compress selected videos, or all tray videos, into smaller MP4 copies")
+                    .disabled(store.trayVideoURLs.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
@@ -2009,6 +2046,11 @@ private struct FloatingTrayView: View {
                 } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
                     .help("Compress images or make PNG copies of selected images, or all tray images")
                     .disabled(store.trayImageURLs.isEmpty)
+                Menu {
+                    Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
+                } label: { Label("Video", systemImage: "film") }
+                    .help("Compress selected videos, or all tray videos, into smaller MP4 copies")
+                    .disabled(store.trayVideoURLs.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 let visibleIDs = Set(store.visibleTrayFiles.map(\.id))

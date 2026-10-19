@@ -1,10 +1,10 @@
-# MacNotch v0.58
+# MacNotch v0.59
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
 ## Working features
 
-- **File Tray:** drag files and folders onto the notch or add them through the file picker. Search by file or parent-folder name and select all visible matches. Image, video, audio, PDF, and other supported files show Quick Look thumbnails directly in the tray; use a row's context menu to open a larger in-app Quick Look preview. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references, share them together, or copy them into a chosen or recent folder; name collisions get numbered copies, and originals are never moved or overwritten. Merge selected or all tray PDFs into a new PDF, preserving source order and pages. You can also open, reveal, or remove individual items; create a ZIP archive; make smaller JPEG copies; or convert selected images to full-resolution PNG copies that preserve orientation and transparency while stripping GPS metadata. Output names are collision-safe and source files stay unchanged.
+- **File Tray:** drag files and folders onto the notch or add them through the file picker. Search by file or parent-folder name and select all visible matches. Image, video, audio, PDF, and other supported files show Quick Look thumbnails directly in the tray; use a row's context menu to open a larger in-app Quick Look preview. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references, share them together, or copy them into a chosen or recent folder; name collisions get numbered copies, and originals are never moved or overwritten. Merge selected or all tray PDFs into a new PDF, preserving source order and pages. You can also open, reveal, or remove individual items; create a ZIP archive; make smaller JPEG copies; convert selected images to full-resolution PNG copies; or export selected MOV, MP4, and M4V videos as medium-quality MP4 copies. A video copy is kept only when smaller than its source; output names are collision-safe, GPS metadata is stripped from PNG copies, and all source files stay unchanged.
 - **External display islands:** each connected display without the built-in camera notch gets a compact MacNotch island with current playback or recording status. Expand it for live CPU, memory, upload, and download readings plus direct links to the shelf, player, widgets, and built-in notch; it hides in full-screen apps when that setting is enabled.
 - **Emoji picker:** open macOS Emoji & Symbols from the Home panel or press **Control–Option–E**. Emoji insertion and search use Apple's native character palette.
 - **App Launcher:** search local applications by display name or bundle identifier, open them directly, and save or remove favorites. Move through filtered results with the arrow keys and press Return to open the selected app. The catalog scans only standard local Applications folders; it does not index documents, inspect app contents, or send search data over the network.
@@ -131,6 +131,10 @@ Added Settings controls to show or hide individual cards in the floating System 
 ## v0.58
 
 Added a confirmation-protected recording cleanup action. It moves the selected audio/video file and any matching transcript or subtitle sidecars to macOS Trash together, then refreshes the history. Tests verify sidecar discovery for both audio-only and screen recordings.
+
+## v0.59
+
+Added batch video compression for selected or all MOV, MP4, and M4V tray items. MacNotch exports medium-quality MP4 copies into a chosen folder and keeps a result only when it is smaller than the source; repeated inputs are deduplicated, output collisions get numbered names, unsupported or missing files are skipped, and originals remain untouched. A generated-video integration check verifies the exported MP4 is playable and smaller than its source, as well as source retention and collision safety.
 
 ## v0.57
 

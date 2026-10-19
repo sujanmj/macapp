@@ -27,6 +27,10 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   -framework AppKit -framework ImageIO -framework UniformTypeIdentifiers -o "$scratch/macnotch-image-actions-check"
 "$scratch/macnotch-image-actions-check"
 xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/VideoFileActions.swift scripts/macnotch-video-actions-tests.swift \
+  -framework AVFoundation -o "$scratch/macnotch-video-actions-check"
+"$scratch/macnotch-video-actions-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/ClipboardPinStore.swift scripts/macnotch-clipboard-pin-tests.swift \
   -o "$scratch/macnotch-clipboard-pin-check"
 "$scratch/macnotch-clipboard-pin-check"
