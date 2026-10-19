@@ -28,7 +28,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
 "$scratch/macnotch-image-actions-check"
 xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/VideoFileActions.swift scripts/macnotch-video-actions-tests.swift \
-  -framework AVFoundation -o "$scratch/macnotch-video-actions-check"
+  -framework AVFoundation -framework ImageIO -framework UniformTypeIdentifiers -o "$scratch/macnotch-video-actions-check"
 "$scratch/macnotch-video-actions-check"
 xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/AudioFileActions.swift scripts/macnotch-audio-actions-tests.swift \

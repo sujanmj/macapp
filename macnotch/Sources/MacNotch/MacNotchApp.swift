@@ -431,6 +431,32 @@ final class NotchStore: ObservableObject {
             }
         }
     }
+    func createGIFCopiesFromTrayVideos() {
+        let sources = trayVideoURLs
+        guard !sources.isEmpty else { message = "Select existing MOV, MP4, or M4V videos in the tray first."; return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Folder for Animated GIF Copies"
+        panel.prompt = "Save GIFs"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let directory = panel.url else { message = "GIF conversion canceled."; return }
+        message = "Creating GIF copies from \(sources.count) video\(sources.count == 1 ? "" : "s")… Originals remain unchanged."
+        Task.detached(priority: .userInitiated) { [store = self, sources, directory] in
+            let result = await VideoFileActions.createGIFs(sources, into: directory)
+            await MainActor.run {
+                if result.outputs.isEmpty {
+                    store.message = "No GIFs were created. " + (result.failures.first?.1 ?? "Check the selected files.")
+                } else if result.failures.isEmpty {
+                    store.message = "Created \(result.outputs.count) animated GIF copies (up to 15 seconds each). Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                } else {
+                    store.message = "Created \(result.outputs.count) GIF copies; \(result.failures.count) video(s) could not be converted. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                }
+            }
+        }
+    }
     func convertTrayAudioToM4A() {
         let sources = trayConvertibleAudioURLs
         guard !sources.isEmpty else { message = "Select existing WAV, AIFF, AIF, or CAF audio in the tray first."; return }
@@ -1358,8 +1384,9 @@ struct NotchView: View {
                     .disabled(store.trayImageURLs.isEmpty)
                 Menu {
                     Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
+                    Button("Create Animated GIF Copies…") { store.createGIFCopiesFromTrayVideos() }
                 } label: { Label("Video", systemImage: "film") }
-                    .help("Compress selected videos, or all tray videos, into smaller MP4 copies")
+                    .help("Create smaller MP4 copies or animated GIFs from selected videos, or all tray videos")
                     .disabled(store.trayVideoURLs.isEmpty)
                 Menu {
                     Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }
@@ -2085,8 +2112,9 @@ private struct FloatingTrayView: View {
                     .disabled(store.trayImageURLs.isEmpty)
                 Menu {
                     Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
+                    Button("Create Animated GIF Copies…") { store.createGIFCopiesFromTrayVideos() }
                 } label: { Label("Video", systemImage: "film") }
-                    .help("Compress selected videos, or all tray videos, into smaller MP4 copies")
+                    .help("Create smaller MP4 copies or animated GIFs from selected videos, or all tray videos")
                     .disabled(store.trayVideoURLs.isEmpty)
                 Menu {
                     Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }

@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreVideo
 import Foundation
+import ImageIO
 
 @main
 struct MacNotchVideoActionsTests {
@@ -25,18 +26,38 @@ struct MacNotchVideoActionsTests {
               try Data(contentsOf: first) == Data("existing output".utf8) else {
             fatalError("Compression destination selection must avoid overwriting existing files")
         }
+        let firstGIF = VideoFileActions.gifDestination(for: movie, in: folder)
+        guard firstGIF.lastPathComponent == "demo-animated.gif" else { fatalError("Unexpected first GIF output name") }
+        try Data("existing GIF".utf8).write(to: firstGIF)
+        let secondGIF = VideoFileActions.gifDestination(for: movie, in: folder)
+        guard secondGIF.lastPathComponent == "demo-animated-2.gif",
+              try Data(contentsOf: firstGIF) == Data("existing GIF".utf8) else {
+            fatalError("GIF destination selection must avoid overwriting existing files")
+        }
 
         let unsupported = folder.appendingPathComponent("notes.txt")
         try Data("not a movie".utf8).write(to: unsupported)
         let invalid = await VideoFileActions.compress([unsupported, unsupported], into: folder)
+        let invalidGIF = await VideoFileActions.createGIFs([unsupported, unsupported], into: folder)
         guard invalid.outputs.isEmpty, invalid.failures.count == 1,
+              invalidGIF.outputs.isEmpty, invalidGIF.failures.count == 1,
               try Data(contentsOf: first) == Data("existing output".utf8),
+              try Data(contentsOf: firstGIF) == Data("existing GIF".utf8),
               FileManager.default.fileExists(atPath: unsupported.path) else {
             fatalError("Invalid/duplicate videos should be reported once without changing sources or existing output")
         }
 
         try createNoisyMovie(at: movie)
         let sourceSize = try movie.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        let gifs = await VideoFileActions.createGIFs([movie, movie], into: folder)
+        guard gifs.outputs.count == 1, gifs.failures.isEmpty,
+              FileManager.default.fileExists(atPath: movie.path),
+              let gif = gifs.outputs.first,
+              let gifSource = CGImageSourceCreateWithURL(gif as CFURL, nil),
+              CGImageSourceGetCount(gifSource) >= 8,
+              try Data(contentsOf: firstGIF) == Data("existing GIF".utf8) else {
+            fatalError("Video-to-GIF conversion should produce one animated, collision-safe copy while preserving the source")
+        }
         let compressed = await VideoFileActions.compress([movie, movie], into: folder)
         guard compressed.outputs.count == 1, compressed.failures.isEmpty,
               FileManager.default.fileExists(atPath: movie.path),
