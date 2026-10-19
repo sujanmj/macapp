@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 import QuickLookThumbnailing
 import QuickLookUI
 import CoreAudio
+import WidgetKit
 
 struct PulseGlance: Decodable {
     let schema: Int
@@ -238,6 +239,8 @@ final class NotchStore: ObservableObject {
     @Published var recordingSeconds = 0
     private let sampler = SystemSampler()
     private var lastMetricSample = Date.distantPast
+    private var lastWidgetSample = Date.distantPast
+    private var lastWidgetReload = Date.distantPast
     private var hudID = UUID()
     let hardware = HardwareFeedback()
     var highlightColor: Color {
@@ -334,6 +337,7 @@ final class NotchStore: ObservableObject {
             metricHistory = metricHistoryStore.points
             lastMetricSample = metrics.sampledAt
         }
+        writeWidgetSnapshotIfNeeded()
         if clipboardEnabled { sampleClipboard() }
         if musicEnabled { refreshMusic() }
         if let focusEnd {
@@ -351,6 +355,23 @@ final class NotchStore: ObservableObject {
                     message = "Focus complete. Your \(nextPhase.title.lowercased()) has started."
                 }
             }
+        }
+    }
+    private func writeWidgetSnapshotIfNeeded() {
+        guard Date().timeIntervalSince(lastWidgetSample) >= 15 else { return }
+        lastWidgetSample = Date()
+        do {
+            try NotchWidgetSnapshot(schema: 1, date: metrics.sampledAt,
+                                    memoryUsed: metrics.memoryUsed, memoryTotal: metrics.memoryTotal,
+                                    diskFree: metrics.diskFree, cpu: metrics.cpuPercent,
+                                    upload: metrics.uploadBytesPerSecond, download: metrics.downloadBytesPerSecond,
+                                    topApp: metrics.topProcess, topBytes: metrics.topProcessBytes).write()
+            if Date().timeIntervalSince(lastWidgetReload) >= 300 {
+                WidgetCenter.shared.reloadTimelines(ofKind: "MacNotchDesktopWidget")
+                lastWidgetReload = Date()
+            }
+        } catch {
+            // The in-app monitor remains usable if the optional desktop-widget file is unavailable.
         }
     }
     func addTrayURLs(_ urls: [URL]) {
@@ -1502,6 +1523,8 @@ struct NotchView: View {
                     .help("Keep a compact system monitor above other windows")
                 Text(store.metrics.sampledAt, style: .time).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
             }
+            Text("Desktop widget: right-click the desktop, choose Edit Widgets, then add MacNotch · System Snapshot. It shows timestamped readings; macOS controls when the widget refreshes.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 metricCard("CPU", value: String(format: "%.0f%%", store.metrics.cpuPercent), progress: store.metrics.cpuPercent / 100, symbol: "cpu", tint: .cyan)
                 metricCard("Memory", value: "\(ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.memoryUsed), countStyle: .memory)) / \(ByteCountFormatter.string(fromByteCount: Int64(clamping: store.metrics.memoryTotal), countStyle: .memory))", progress: Double(store.metrics.memoryUsed) / Double(max(1, store.metrics.memoryTotal)), symbol: "memorychip", tint: .purple)
@@ -2824,6 +2847,7 @@ struct NotchSettings: View {
                 Button("Input Monitoring Settings") { openPrivacy("Privacy_ListenEvent") }
                 Divider(); LoginToggle()
                 Text("⌃⌥N expands/collapses the notch panel; ⌃⌥F opens the floating file shelf; ⌃⌥W opens the system monitor; ⌃⌥M opens the music player; ⌃⌥P opens the teleprompter. Hover to expand; pin to keep the notch panel open. Siri opens Apple's own interface; it is not embedded. Media support is Music/Spotify, not private system-wide Now Playing APIs.").font(.caption)
+                Text("The MacNotch desktop widget reads a private local snapshot while the app is open. MacNotch samples every 15 seconds and asks WidgetKit to refresh at most every five minutes; macOS may wait longer. A timestamp and stale-data label prevent old readings from appearing live.").font(.caption)
             }.padding(20)
         }.frame(width: 480, height: 450)
     }

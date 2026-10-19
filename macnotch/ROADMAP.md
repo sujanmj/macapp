@@ -16,6 +16,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Clipboard | Partial | Searchable session history and explicitly saved local pins with privacy exclusions; cross-device sync still needed. |
 | Live Activities | Partial | MacNotch-owned music, focus, tray, recorder, frontmost-app, and explicitly loaded next-event/reminder statuses; system and third-party feeds still needed. |
 | Floating player | Partial | Resizable floating Apple Music/Spotify mini-player with seeking, playback controls, artwork, Apple Music lyrics, and a 15-track current-playlist preview; deeper queue controls and Spotify lyrics remain. |
+| macOS desktop widget | Partial | Native small/medium/large WidgetKit views show timestamped RAM, CPU, network, disk, and top-app data from a private local snapshot; WidgetKit refresh timing is system-controlled, and interactive actions and custom widget settings remain. |
 | Lock screen | Planned | Lock-screen display surfaces and media/focus cards. |
 | Cloud sharing | Planned | Temporary file links with expiry and account/security design. |
 | iPhone sync/widgets | Planned | Pairing, encrypted sync, iOS widgets, and Live Activities. |

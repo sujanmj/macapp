@@ -7,15 +7,19 @@ targets:
   MacNotch:
     type: application
     platform: macOS
+    dependencies:
+      - target: MacNotchWidget
+        embed: true
     sources:
       - Sources/MacNotch
+      - Sources/Shared
       - ../shared/UtilityKit
       - Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macnotch
-        MARKETING_VERSION: '0.63.0'
-        CURRENT_PROJECT_VERSION: '61'
+        MARKETING_VERSION: '0.64.0'
+        CURRENT_PROJECT_VERSION: '62'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacNotch/Info.plist
@@ -24,3 +28,22 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: Sources/MacNotch/MacNotch.entitlements
         ENABLE_APP_SANDBOX: NO
+  MacNotchWidget:
+    type: app-extension
+    subtype: widgetkit-extension
+    platform: macOS
+    sources:
+      - Sources/MacNotchWidget
+      - Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macnotch.widget
+        MARKETING_VERSION: '0.64.0'
+        CURRENT_PROJECT_VERSION: '62'
+        SWIFT_VERSION: '5.9'
+        MACOSX_DEPLOYMENT_TARGET: '14.0'
+        INFOPLIST_FILE: Sources/MacNotchWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: YES
+        CODE_SIGN_ENTITLEMENTS: Sources/MacNotchWidget/Widget.entitlements

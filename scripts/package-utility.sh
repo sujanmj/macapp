@@ -12,6 +12,11 @@ xcodebuild -project "$name.xcodeproj" -scheme "$name" -configuration Release \
   -jobs 1 ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
 app="$PWD/build/Build/Products/Release/$name.app"
 test -d "$app"
+if [[ "$name" == MacNotch ]]; then
+  widget="$app/Contents/PlugIns/MacNotchWidget.appex"
+  test -d "$widget"
+  codesign --force --sign - --timestamp=none --entitlements "$PWD/Sources/MacNotchWidget/Widget.entitlements" "$widget"
+fi
 MACAPP_ENTITLEMENTS="$PWD/Sources/$name/$name.entitlements" bash ../scripts/sign-bundle.sh "$app"
 codesign -d --entitlements :- "$app" > build/signed-entitlements.plist 2>/dev/null
 case "$name" in
@@ -22,7 +27,13 @@ case "$name" in
     /usr/libexec/PlistBuddy -c 'Print :com.apple.security.automation.apple-events' build/signed-entitlements.plist | /usr/bin/grep -qx true
     /usr/libexec/PlistBuddy -c 'Print :com.apple.security.personal-information.speech-recognition' build/signed-entitlements.plist | /usr/bin/grep -qx true
     /usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSMessage' "$app/Contents/Info.plist" | /usr/bin/grep -qx addFilesToTray
-    /usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSPortName' "$app/Contents/Info.plist" | /usr/bin/grep -qx MacNotch ;;
+    /usr/libexec/PlistBuddy -c 'Print :NSServices:0:NSPortName' "$app/Contents/Info.plist" | /usr/bin/grep -qx MacNotch
+    widget="$app/Contents/PlugIns/MacNotchWidget.appex"
+    test -d "$widget"
+    codesign --verify --deep --strict "$widget"
+    codesign -d --entitlements :- "$widget" > build/widget-entitlements.plist 2>/dev/null
+    /usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' build/widget-entitlements.plist | /usr/bin/grep -qx true
+    /usr/libexec/PlistBuddy -c 'Print :com.apple.security.temporary-exception.files.home-relative-path.read-only:0' build/widget-entitlements.plist | /usr/bin/grep -qx '/Library/Application Support/com.sujanmj.macnotch/' ;;
 esac
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
