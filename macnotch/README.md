@@ -1,4 +1,4 @@
-# MacNotch v0.50
+# MacNotch v0.51
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -8,6 +8,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **External display islands:** each connected display without the built-in camera notch gets a compact MacNotch island with current playback or recording status. Expand it for live CPU, memory, upload, and download readings plus direct links to the shelf, player, widgets, and built-in notch; it hides in full-screen apps when that setting is enabled.
 - **Emoji picker:** open macOS Emoji & Symbols from the Home panel or press **Control–Option–E**. Emoji insertion and search use Apple's native character palette.
 - **App Launcher:** search local applications by display name or bundle identifier, open them directly, and save or remove favorites. The catalog scans only standard local Applications folders; it does not index documents, inspect app contents, or send search data over the network.
+- **Audio Control:** view and switch the current macOS sound output and adjust software volume or mute when the selected device exposes those controls. Output selection and volume changes are explicit; hardware-only device levels remain available through the device's own controls.
 - **Window Snap:** move the focused window to the left or right half, maximize within the screen's usable area, or center it. The action is explicit and uses macOS Accessibility permission; MacNotch asks macOS to show its permission prompt when needed.
 - **Stay Awake:** temporarily prevent idle display and system sleep for one, two, or four hours from Home. The assertion expires automatically, can be ended early, and does not override sleep caused by closing the lid or a system emergency.
 - **Floating File Shelf:** use **Control–Option–F** from anywhere, or quickly reverse direction twice while carrying files to reveal the shelf near your pointer. Drop the in-progress group there, then move the whole group together. Its size and screen position are restored between launches. Shake reveal is on by default and can be disabled in Settings; it observes pointer movement only.
@@ -126,6 +127,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.51
+
+Added Core Audio output device discovery and switching, supported software volume and mute controls, unsupported-control explanations, one-second refresh for external route changes, and deterministic volume-clamping checks.
 
 ## v0.50
 

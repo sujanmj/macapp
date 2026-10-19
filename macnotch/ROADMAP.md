@@ -40,9 +40,9 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Xcode Builds | Planned |
 | Productivity | Things 3 | Planned |
 | Media | Spotify | Partial — playback controls, seeking, and album artwork; queue and lyrics remain |
+| Media | Audio Control | Partial — Core Audio output device switching, software volume, mute when supported, and current route display; hardware-only output volume and per-app routing remain macOS-controlled |
 | Media | Apple Music | Partial — playback controls, seeking, album artwork, available track lyrics, and a playable preview of the current playlist's first 15 tracks; full queue management remains |
 | Media | Lyrics | Partial — Apple Music-provided track lyrics in the floating player; synchronized line timing and Spotify lyrics remain |
-| Media | Audio Control | Planned |
 | Media | Kaset / YouTube Music | Planned |
 | AI | Remove Background | Planned |
 | AI | Voice Transcribe | Partial — MacVoice is separate and not integrated into MacNotch |

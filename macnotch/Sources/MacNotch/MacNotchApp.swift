@@ -5,6 +5,7 @@ import Carbon
 import UniformTypeIdentifiers
 import QuickLookThumbnailing
 import QuickLookUI
+import CoreAudio
 
 struct PulseGlance: Decodable {
     let schema: Int
@@ -814,6 +815,7 @@ final class NotchStore: ObservableObject {
 struct NotchView: View {
     @ObservedObject var store: NotchStore
     @StateObject private var appLauncher = AppLauncherStore()
+    @StateObject private var audioControl = AudioControlStore()
     @StateObject private var windowSnap = WindowSnapController()
     @StateObject private var stayAwake = StayAwakeController()
     @State private var tab = "Home"
@@ -903,10 +905,10 @@ struct NotchView: View {
             HStack(spacing: 5) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 5) {
-                ForEach(["Home", "Launch", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Prompt", "Notes"], id: \.self) { item in
+                ForEach(["Home", "Launch", "Audio", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Prompt", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : item == "Prompt" ? 390 : item == "Launch" ? 360 : 340
+                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : item == "Prompt" ? 390 : item == "Launch" || item == "Audio" ? 360 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
@@ -928,6 +930,7 @@ struct NotchView: View {
                 switch tab {
                 case "Home": dashboard
                 case "Launch": AppLauncherView(store: appLauncher)
+                case "Audio": AudioControlView(store: audioControl)
                 case "Music": media
                 case "Tray": fileTray
                 case "Widgets": widgets
@@ -953,6 +956,7 @@ struct NotchView: View {
         switch name {
         case "Home": return "square.grid.2x2.fill"
         case "Launch": return "app.dashed"
+        case "Audio": return "speaker.wave.2.fill"
         case "Music": return "music.note"
         case "Tray": return "tray.full.fill"
         case "Widgets": return "chart.xyaxis.line"
@@ -1047,7 +1051,7 @@ struct NotchView: View {
         }.buttonStyle(.plain)
     }
     private func accent(_ section: String) -> Color {
-        switch section { case "Music": return .green; case "Focus": return .orange; case "Events": return .cyan; default: return store.highlightColor }
+        switch section { case "Music": return .green; case "Audio", "Focus": return .orange; case "Events": return .cyan; default: return store.highlightColor }
     }
     private var expandButton: some View {
         Button { store.expanded = true; store.pinned = true; store.resize?() } label: {
@@ -1493,6 +1497,48 @@ private struct AppLauncherView: View {
             Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
         .padding(12).modifier(GlassCard(tint: .cyan))
+    }
+}
+
+private struct AudioControlView: View {
+    @ObservedObject var store: AudioControlStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Sound Output", systemImage: "speaker.wave.2.fill").font(.headline)
+                Spacer()
+                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh sound devices")
+            }
+            Picker("Output device", selection: Binding(
+                get: { store.currentDeviceID },
+                set: { if let id = $0 { store.selectOutput(id) } }
+            )) {
+                if store.devices.isEmpty { Text("No output devices").tag(Optional<AudioDeviceID>.none) }
+                ForEach(store.devices) { device in
+                    Text(device.name + (device.isDefault ? " · Current" : ""))
+                        .tag(Optional(device.id))
+                }
+            }
+            .labelsHidden().disabled(store.devices.count < 2)
+            HStack(spacing: 10) {
+                Image(systemName: store.isMuted ? "speaker.slash.fill" : "speaker.wave.1.fill").frame(width: 20)
+                Slider(value: Binding(get: { store.volume }, set: { store.setVolume($0) }), in: 0...1)
+                    .disabled(!store.volumeAvailable)
+                    .accessibilityLabel("Output volume")
+                Text(store.volumeAvailable ? "\(Int(store.volume * 100))%" : "—")
+                    .font(.system(size: 10, design: .monospaced)).frame(width: 36, alignment: .trailing)
+                Button { store.toggleMute() } label: {
+                    Image(systemName: store.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                }
+                .disabled(!store.muteAvailable)
+                .help(store.isMuted ? "Unmute output" : "Mute output")
+            }
+            Text(store.message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("These controls use Core Audio and affect only the selected macOS output. Devices that do not expose software volume keep their hardware controls. No audio is recorded or transmitted here.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14).modifier(GlassCard(tint: .orange))
     }
 }
 

@@ -66,3 +66,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/LocalAppLauncher.swift scripts/macnotch-app-catalog-tests.swift \
   -framework AppKit -framework SwiftUI -o "$scratch/macnotch-app-catalog-check"
 "$scratch/macnotch-app-catalog-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/AudioControl.swift scripts/macnotch-audio-control-tests.swift \
+  -framework AppKit -framework CoreAudio -framework SwiftUI -o "$scratch/macnotch-audio-control-check"
+"$scratch/macnotch-audio-control-check"
