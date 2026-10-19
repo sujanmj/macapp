@@ -1,4 +1,4 @@
-# MacNotch v0.49
+# MacNotch v0.50
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -7,6 +7,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **File Tray:** drag files and folders onto the notch or add them through the file picker. Search by file or parent-folder name and select all visible matches. Image, video, audio, PDF, and other supported files show Quick Look thumbnails directly in the tray; use a row's context menu to open a larger in-app Quick Look preview. In Finder, use Services → Add to MacNotch File Tray to add selected items directly. Open the separate floating shelf to keep items visible across apps. Entries remain available across launches. Select multiple entries and copy their file references, share them together, or copy them into a chosen or recent folder; name collisions get numbered copies, and originals are never moved or overwritten. Merge selected or all tray PDFs into a new PDF, preserving source order and pages. You can also open, reveal, or remove individual items; create a ZIP archive; and create smaller JPEG copies of images.
 - **External display islands:** each connected display without the built-in camera notch gets a compact MacNotch island with current playback or recording status. Expand it for live CPU, memory, upload, and download readings plus direct links to the shelf, player, widgets, and built-in notch; it hides in full-screen apps when that setting is enabled.
 - **Emoji picker:** open macOS Emoji & Symbols from the Home panel or press **Control–Option–E**. Emoji insertion and search use Apple's native character palette.
+- **App Launcher:** search local applications by display name or bundle identifier, open them directly, and save or remove favorites. The catalog scans only standard local Applications folders; it does not index documents, inspect app contents, or send search data over the network.
 - **Window Snap:** move the focused window to the left or right half, maximize within the screen's usable area, or center it. The action is explicit and uses macOS Accessibility permission; MacNotch asks macOS to show its permission prompt when needed.
 - **Stay Awake:** temporarily prevent idle display and system sleep for one, two, or four hours from Home. The assertion expires automatically, can be ended early, and does not override sleep caused by closing the lid or a system emergency.
 - **Floating File Shelf:** use **Control–Option–F** from anywhere, or quickly reverse direction twice while carrying files to reveal the shelf near your pointer. Drop the in-progress group there, then move the whole group together. Its size and screen position are restored between launches. Shake reveal is on by default and can be disabled in Settings; it observes pointer movement only.
@@ -125,6 +126,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.50
+
+Added a local searchable app launcher with persisted favorites, direct app opening, refresh, and deterministic tests for bundle discovery, hidden paths, nested apps, de-duplication, and sorting.
 
 ## v0.49
 

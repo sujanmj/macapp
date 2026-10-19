@@ -62,3 +62,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/MeetingRecordingLibrary.swift scripts/macnotch-meeting-library-tests.swift \
   -o "$scratch/macnotch-meeting-library-check"
 "$scratch/macnotch-meeting-library-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/LocalAppLauncher.swift scripts/macnotch-app-catalog-tests.swift \
+  -framework AppKit -framework SwiftUI -o "$scratch/macnotch-app-catalog-check"
+"$scratch/macnotch-app-catalog-check"

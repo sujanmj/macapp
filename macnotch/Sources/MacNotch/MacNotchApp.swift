@@ -813,6 +813,7 @@ final class NotchStore: ObservableObject {
 
 struct NotchView: View {
     @ObservedObject var store: NotchStore
+    @StateObject private var appLauncher = AppLauncherStore()
     @StateObject private var windowSnap = WindowSnapController()
     @StateObject private var stayAwake = StayAwakeController()
     @State private var tab = "Home"
@@ -900,10 +901,12 @@ struct NotchView: View {
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 5) {
-                ForEach(["Home", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Prompt", "Notes"], id: \.self) { item in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                ForEach(["Home", "Launch", "Music", "Tray", "Widgets", "Live", "Capture", "Record", "Clipboard", "Gemini", "Focus", "Events", "Prompt", "Notes"], id: \.self) { item in
                     Button {
                         tab = item
-                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : item == "Prompt" ? 390 : 340
+                        store.expandedHeight = item == "Home" ? 280 : item == "Music" ? 260 : item == "Tray" || item == "Widgets" || item == "Capture" ? 360 : item == "Events" ? 330 : item == "Prompt" ? 390 : item == "Launch" ? 360 : 340
                         store.resize?()
                     } label: {
                         HStack(spacing: 5) {
@@ -912,6 +915,8 @@ struct NotchView: View {
                         }.font(.system(size: 10)).padding(.horizontal, 8).padding(.vertical, 7)
                             .background(tab == item ? accent(item).opacity(0.26) : accent(item).opacity(0.09), in: Capsule())
                     }.buttonStyle(.plain).foregroundStyle(.primary).help(item)
+                }
+                    }
                 }
                 Spacer(minLength: 4)
                 Button { store.pinned.toggle() } label: { Image(systemName: store.pinned ? "pin.fill" : "pin") }
@@ -922,6 +927,7 @@ struct NotchView: View {
             Group {
                 switch tab {
                 case "Home": dashboard
+                case "Launch": AppLauncherView(store: appLauncher)
                 case "Music": media
                 case "Tray": fileTray
                 case "Widgets": widgets
@@ -946,6 +952,7 @@ struct NotchView: View {
     private func icon(_ name: String) -> String {
         switch name {
         case "Home": return "square.grid.2x2.fill"
+        case "Launch": return "app.dashed"
         case "Music": return "music.note"
         case "Tray": return "tray.full.fill"
         case "Widgets": return "chart.xyaxis.line"
@@ -1435,6 +1442,58 @@ struct NotchView: View {
         }
     }
 
+}
+
+private struct AppLauncherView: View {
+    @ObservedObject var store: AppLauncherStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                TextField("Search apps by name", text: $store.search)
+                    .textFieldStyle(.roundedBorder)
+                Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                    .help("Refresh installed apps")
+            }
+            HStack {
+                Toggle("Favorites only", isOn: $store.favoritesOnly).toggleStyle(.switch).controlSize(.small)
+                Spacer()
+                Text("\(store.visibleApplications.count) apps").font(.caption2).foregroundStyle(.secondary)
+            }
+            if store.visibleApplications.isEmpty {
+                ContentUnavailableView(store.favoritesOnly && store.search.isEmpty ? "No favorites yet" : "No matching apps",
+                                       systemImage: "app.dashed",
+                                       description: Text(store.favoritesOnly && store.search.isEmpty ? "Switch off Favorites only, then pin apps with the star." : "Try another app name."))
+                    .frame(maxWidth: .infinity, minHeight: 150)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(store.visibleApplications) { app in
+                            HStack(spacing: 8) {
+                                Image(nsImage: NSWorkspace.shared.icon(forFile: app.url.path))
+                                    .resizable().frame(width: 25, height: 25)
+                                Button { store.launch(app) } label: {
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(app.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                        Text(app.bundleIdentifier ?? app.url.deletingLastPathComponent().path)
+                                            .font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(1)
+                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                }.buttonStyle(.plain).help("Open \(app.name)")
+                                Button { store.toggleFavorite(app) } label: {
+                                    Image(systemName: store.favoriteIDs.contains(app.id) ? "star.fill" : "star")
+                                        .foregroundStyle(store.favoriteIDs.contains(app.id) ? .yellow : .secondary)
+                                }.buttonStyle(.plain).help(store.favoriteIDs.contains(app.id) ? "Remove favorite" : "Add to favorites")
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                }.frame(maxHeight: 195)
+            }
+            Text(store.message).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .padding(12).modifier(GlassCard(tint: .cyan))
+    }
 }
 
 
