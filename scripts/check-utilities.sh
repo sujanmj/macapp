@@ -27,6 +27,10 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   -framework AppKit -framework ImageIO -framework UniformTypeIdentifiers -o "$scratch/macnotch-image-actions-check"
 "$scratch/macnotch-image-actions-check"
 xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/ImagePDFFileActions.swift scripts/macnotch-image-pdf-tests.swift \
+  -framework AppKit -framework PDFKit -o "$scratch/macnotch-image-pdf-check"
+"$scratch/macnotch-image-pdf-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/VideoFileActions.swift scripts/macnotch-video-actions-tests.swift \
   -framework AVFoundation -framework ImageIO -framework UniformTypeIdentifiers -o "$scratch/macnotch-video-actions-check"
 "$scratch/macnotch-video-actions-check"

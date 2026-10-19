@@ -405,6 +405,29 @@ final class NotchStore: ObservableObject {
     func createPNGCopies() {
         exportTrayImages(asPNG: true)
     }
+    func createPDFFromTrayImages() {
+        let sources = trayImageURLs
+        guard !sources.isEmpty else { message = "Select images in the tray first."; return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Folder for the Image PDF"
+        panel.prompt = "Save PDF"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let directory = panel.url else { message = "Image PDF creation canceled."; return }
+        message = "Creating a PDF from \(sources.count) image\(sources.count == 1 ? "" : "s")… Originals remain unchanged."
+        Task.detached(priority: .userInitiated) { [store = self, sources, directory] in
+            let result = ImagePDFFileActions.makePDF(from: sources, in: directory)
+            await MainActor.run {
+                guard let output = result.output else {
+                    store.message = "Image PDF creation failed: \(result.error?.localizedDescription ?? "Unknown error")"
+                    return
+                }
+                store.message = "Created a \(result.pageCount)-page image PDF. Originals remain unchanged."
+                NSWorkspace.shared.activateFileViewerSelecting([output])
+            }
+        }
+    }
     func compressTrayVideos() {
         let sources = trayVideoURLs
         guard !sources.isEmpty else { message = "Select existing MOV, MP4, or M4V videos in the tray first."; return }
@@ -1441,8 +1464,9 @@ struct NotchView: View {
                 Menu {
                     Button("Create Smaller JPEG Copies") { store.createSmallerJPEGCopies() }
                     Button("Convert to PNG Copies") { store.createPNGCopies() }
+                    Button("Create PDF from Images…") { store.createPDFFromTrayImages() }
                 } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
-                    .help("Compress images or make PNG copies of selected images, or all tray images")
+                    .help("Compress images, make PNG copies, or combine selected images into a PDF")
                     .disabled(store.trayImageURLs.isEmpty)
                 Menu {
                     Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
@@ -2170,8 +2194,9 @@ private struct FloatingTrayView: View {
                 Menu {
                     Button("Create Smaller JPEG Copies") { store.createSmallerJPEGCopies() }
                     Button("Convert to PNG Copies") { store.createPNGCopies() }
+                    Button("Create PDF from Images…") { store.createPDFFromTrayImages() }
                 } label: { Label("Images", systemImage: "photo.badge.arrow.down") }
-                    .help("Compress images or make PNG copies of selected images, or all tray images")
+                    .help("Compress images, make PNG copies, or combine selected images into a PDF")
                     .disabled(store.trayImageURLs.isEmpty)
                 Menu {
                     Button("Create Smaller MP4 Copies") { store.compressTrayVideos() }
