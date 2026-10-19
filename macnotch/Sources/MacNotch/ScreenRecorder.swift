@@ -140,6 +140,7 @@ final class ScreenRecorderController: ObservableObject {
     @Published private(set) var elapsed = 0
     @Published private(set) var message = "Record the primary display to Movies/MacNotch Recordings."
     @Published private(set) var latestRecording: URL?
+    @Published private(set) var recordings: [MeetingRecording] = []
     @Published private(set) var availableWindows: [SCWindow] = []
     @Published var selectedWindowID: CGWindowID?
 
@@ -147,6 +148,16 @@ final class ScreenRecorderController: ObservableObject {
     private var output: ScreenRecordingOutput?
     private var startedAt: Date?
     private var timer: Timer?
+
+    private var recordingsFolder: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Movies/MacNotch Recordings", isDirectory: true)
+    }
+
+    func refreshRecordings() {
+        recordings = MeetingRecordingLibrary.list(in: recordingsFolder)
+        if latestRecording == nil { latestRecording = recordings.first?.url }
+    }
 
     func refreshWindows() async {
         do {
@@ -246,6 +257,7 @@ final class ScreenRecorderController: ObservableObject {
             try await stream.startCapture()
             self.stream = stream
             self.output = output
+            refreshRecordings()
             isRecording = true
             startedAt = Date()
             elapsed = 0
@@ -271,6 +283,7 @@ final class ScreenRecorderController: ObservableObject {
         do { try await stream?.stopCapture() } catch { message = "Capture stopped with a warning: \(error.localizedDescription)" }
         if let url = await output?.finish() {
             latestRecording = url
+            refreshRecordings()
             message = "Saved recording to Movies/MacNotch Recordings."
         } else {
             message = "The recording ended before any usable video frames were captured. Check Screen Recording permission and try again."
@@ -281,8 +294,8 @@ final class ScreenRecorderController: ObservableObject {
     }
 
     func openRecordingsFolder() {
-        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies/MacNotch Recordings", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(folder)
+        try? FileManager.default.createDirectory(at: recordingsFolder, withIntermediateDirectories: true)
+        refreshRecordings()
+        NSWorkspace.shared.open(recordingsFolder)
     }
 }

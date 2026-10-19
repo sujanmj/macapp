@@ -2110,10 +2110,57 @@ struct ScreenRecordingControls: View {
                         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([transcript]) }
                     }.font(.system(size: 10))
                 }
+                recordingHistory
             }
             Text("Record the primary display or a single visible app window. MacNotch is excluded from display captures. Screen recording and optional microphone capture require macOS permissions; videos stay on this Mac.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.padding(14).modifier(GlassCard(tint: .red))
+        }
+        .onAppear { recorder.refreshRecordings() }
+        .padding(14).modifier(GlassCard(tint: .red))
+    }
+
+    private var recordingHistory: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Recent recordings").font(.caption.weight(.semibold))
+                Spacer()
+                Button { recorder.refreshRecordings() } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain).help("Refresh recordings")
+                Text("\(recorder.recordings.count)").font(.caption2).foregroundStyle(.secondary)
+            }
+            if recorder.recordings.isEmpty {
+                Text("Finished recordings saved here will appear in this list.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(recorder.recordings) { recording in
+                            HStack(spacing: 6) {
+                                Image(systemName: "film").foregroundStyle(.red)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(recording.url.deletingPathExtension().lastPathComponent)
+                                        .font(.caption2.weight(.medium)).lineLimit(1)
+                                    Text("\(recording.modifiedAt.formatted(date: .abbreviated, time: .shortened)) · \(ByteCountFormatter.string(fromByteCount: recording.size, countStyle: .file))")
+                                        .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer(minLength: 2)
+                                Button { NSWorkspace.shared.open(recording.url) } label: { Image(systemName: "play.fill") }
+                                    .buttonStyle(.plain).help("Open recording")
+                                Button { Task { await transcriber.transcribe(recording.url) } } label: { Image(systemName: "waveform") }
+                                    .buttonStyle(.plain).disabled(transcriber.isTranscribing).help("Create an on-device transcript")
+                                if FileManager.default.fileExists(atPath: recording.transcriptURL.path) {
+                                    Button { NSWorkspace.shared.open(recording.transcriptURL) } label: { Image(systemName: "doc.text") }
+                                        .buttonStyle(.plain).help("Open transcript")
+                                }
+                            }
+                            .padding(.horizontal, 7).padding(.vertical, 5)
+                            .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
+                        }
+                    }
+                }
+                .frame(maxHeight: 118)
+            }
+        }
     }
 }
 

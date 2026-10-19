@@ -1,4 +1,4 @@
-# MacNotch v0.48
+# MacNotch v0.49
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -13,7 +13,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **System Widgets:** locally sampled CPU use, memory use, top resident-memory process, primary `en*` network-interface upload/download rates, free disk space, and MacBook battery level/charging/time estimate. The floating monitor adds a CPU/RAM trend graph for its most recent 60 seconds, and Settings lets you choose which cards it displays. Open it from Widgets, the menu bar, or **Control–Option–W**; it stays above normal windows and remembers its size and position. CPU/memory/network values refresh about every two seconds; the top process refreshes every ten seconds. Network sampling uses the primary wired/wireless adapter and cannot guarantee that a particular adapter is Wi-Fi.
 - **Live Activities:** reports MacNotch's current music playback, Focus timer, file-tray contents, and frontmost application. After you explicitly load Calendar or Reminders in Calendar & Tasks, it also shows your next event and earliest incomplete reminder here. Access remains on demand and local. It does not read third-party meeting, download, call, or system-wide activity feeds.
 - **Screen Recording:** record the primary display or one selected visible app window to `Movies/MacNotch Recordings`, with optional system audio and (on macOS 15+) microphone capture. MacNotch is excluded from display captures and shows a small in-progress indicator at the notch. Capture starts only after you press the button and grant macOS permission; if a selected window is no longer available, recording stops with an explanation rather than falling back to the whole display. For meetings, **Stop & Transcribe** ends capture and starts the on-device transcript in one step; **Stop Recording** remains available on its own.
-- **Meeting Notes:** after recording, explicitly transcribe the latest movie or choose an earlier recording. MacNotch extracts audio locally, requires Apple's on-device speech recognition, and saves a `.txt` transcript beside the movie. It does not upload recordings; unsupported languages stop with an explanation.
+- **Meeting Notes:** browse the 50 newest local recordings, open a movie in your default player, create an on-device transcript for any listed recording, and open an existing transcript from the same row. MacNotch extracts audio locally, requires Apple's on-device speech recognition, and saves a `.txt` transcript beside the movie. It does not upload recordings; unsupported languages stop with an explanation.
 - **Screen Capture & Text:** capture the entire primary display or one visible app window on demand, drag a crop in the preview, draw cyan markup on a separate image copy, and recognize visible text locally with Apple Vision. Captures save as PNGs in `Pictures/MacNotch Captures`.
 - **Music:** connect Apple Music or Spotify and approve macOS Automation access. The player shows album art, track and artist, previous/play/pause/next controls, and a seekable progress bar. Open the floating mini-player with **Control–Option–M** to keep controls available across apps; its size and location are restored between launches. Apple Music lyrics appear when the track provides them; its Playlist button previews and plays the first 15 tracks in the current playlist. Spotify playlist browsing and lyrics, and full queue management, remain future work.
 - **Gemini:** send typed prompts through Google's Gemini API using your own API key, stored in this app's Keychain entry. Input/output token usage is shown per request and for the session. This is separate from Gemini consumer account limits and billing; account remaining usage is not available here. Sending is explicit.
@@ -125,6 +125,10 @@ Added a bounded rolling CPU/RAM history to the floating System Monitor. The comp
 ## v0.34
 
 Added Settings controls to show or hide individual cards in the floating System Monitor. Preferences persist locally, unknown saved card names are ignored safely, and a fresh install starts with all supported cards enabled.
+
+## v0.49
+
+Added a local meeting recording library that lists the 50 newest movie files, their dates and sizes, and direct playback/transcription actions. Existing transcript sidecars open from the same row. A deterministic check covers supported media types, newest-first ordering, hidden files, directories, file sizes, transcript paths, and list limits.
 
 ## v0.48
 
