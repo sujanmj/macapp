@@ -20,7 +20,7 @@ enum MeetingRecordingLibrary {
               ) else { return [] }
 
         return urls.compactMap { url -> MeetingRecording? in
-            guard ["mov", "mp4", "m4v"].contains(url.pathExtension.lowercased()),
+            guard ["mov", "mp4", "m4v", "m4a"].contains(url.pathExtension.lowercased()),
                   let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]),
                   values.isRegularFile == true,
                   let size = values.fileSize,

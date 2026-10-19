@@ -2224,24 +2224,35 @@ struct ScreenRecordingControls: View {
                         .disabled(transcriber.isTranscribing)
                 }
             } else {
-                HStack(spacing: 8) {
-                    Picker("Capture", selection: $recorder.selectedWindowID) {
-                        Text("Primary display").tag(Optional<CGWindowID>.none)
-                        ForEach(recorder.availableWindows, id: \.windowID) { window in
-                            let app = window.owningApplication?.applicationName ?? "App"
-                            let title = window.title?.isEmpty == false ? window.title! : "Untitled window"
-                            Text("\(app) — \(title)").tag(Optional(window.windowID))
-                        }
-                    }.labelsHidden().frame(maxWidth: .infinity)
-                    Button { Task { await recorder.refreshWindows() } } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }.help("Load or refresh visible app windows; macOS may ask for Screen Recording access")
+                Picker("Recording mode", selection: $recorder.audioOnlyMode) {
+                    Text("Screen + Audio").tag(false)
+                    Text("Audio Only").tag(true)
+                }.pickerStyle(.segmented)
+                if !recorder.audioOnlyMode {
+                    HStack(spacing: 8) {
+                        Picker("Capture", selection: $recorder.selectedWindowID) {
+                            Text("Primary display").tag(Optional<CGWindowID>.none)
+                            ForEach(recorder.availableWindows, id: \.windowID) { window in
+                                let app = window.owningApplication?.applicationName ?? "App"
+                                let title = window.title?.isEmpty == false ? window.title! : "Untitled window"
+                                Text("\(app) — \(title)").tag(Optional(window.windowID))
+                            }
+                        }.labelsHidden().frame(maxWidth: .infinity)
+                        Button { Task { await recorder.refreshWindows() } } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }.help("Load or refresh visible app windows; macOS may ask for Screen Recording access")
+                    }
                 }
                 Toggle("Include system audio", isOn: $includeSystemAudio)
                 if #available(macOS 15.0, *) { Toggle("Include microphone", isOn: $includeMicrophone) }
-                Button { Task { await recorder.start(includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone, windowID: recorder.selectedWindowID) } } label: {
+                if recorder.audioOnlyMode {
+                    Text("Audio-only recordings save as M4A. Speech transcripts and timed subtitles can be created locally afterward.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                Button { Task { await recorder.start(includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone, audioOnly: recorder.audioOnlyMode, windowID: recorder.audioOnlyMode ? nil : recorder.selectedWindowID) } } label: {
                     Label("Start Recording", systemImage: "record.circle")
                 }.buttonStyle(.borderedProminent).tint(.red)
+                    .disabled(recorder.audioOnlyMode && !includeSystemAudio && !includeMicrophone)
             }
             Text(recorder.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
@@ -2260,7 +2271,7 @@ struct ScreenRecordingControls: View {
                     .disabled(recorder.latestRecording == nil || transcriber.isTranscribing)
                     Button("Choose Recording…") {
                         let panel = NSOpenPanel()
-                        panel.allowedContentTypes = [.movie]
+                        panel.allowedContentTypes = [.movie, .mpeg4Audio]
                         panel.allowsMultipleSelection = false
                         panel.canChooseDirectories = false
                         if panel.runModal() == .OK, let url = panel.url { Task { await transcriber.transcribe(url) } }
@@ -2302,7 +2313,7 @@ struct ScreenRecordingControls: View {
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(recorder.recordings) { recording in
                             HStack(spacing: 6) {
-                                Image(systemName: "film").foregroundStyle(.red)
+                                Image(systemName: recording.url.pathExtension.lowercased() == "m4a" ? "waveform" : "film").foregroundStyle(.red)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(recording.url.deletingPathExtension().lastPathComponent)
                                         .font(.caption2.weight(.medium)).lineLimit(1)

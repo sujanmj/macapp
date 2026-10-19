@@ -8,39 +8,54 @@ private final class ScreenRecordingOutput: NSObject, SCStreamOutput, SCStreamDel
     let queue = DispatchQueue(label: "com.sujanmj.macnotch.recording-writer", qos: .userInitiated)
     let writer: AVAssetWriter
     let destination: URL
-    private let videoInput: AVAssetWriterInput
+    private let videoInput: AVAssetWriterInput?
     private let audioInput: AVAssetWriterInput?
     private let microphoneInput: AVAssetWriterInput?
+    private let audioOnly: Bool
     private var hasStartedSession = false
     private var hasFailed = false
     var onFailure: ((String) -> Void)?
 
-    init(destination: URL, width: Int, height: Int, includeSystemAudio: Bool, includeMicrophone: Bool) throws {
+    init(destination: URL, width: Int, height: Int, includeSystemAudio: Bool, includeMicrophone: Bool, audioOnly: Bool) throws {
         self.destination = destination
-        writer = try AVAssetWriter(outputURL: destination, fileType: .mov)
-        videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height
-        ])
-        videoInput.expectsMediaDataInRealTime = true
+        self.audioOnly = audioOnly
+        writer = try AVAssetWriter(outputURL: destination, fileType: audioOnly ? .m4a : .mov)
+        if audioOnly {
+            videoInput = nil
+        } else {
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height
+            ])
+            input.expectsMediaDataInRealTime = true
+            videoInput = input
+        }
+        let audioSettings: [String: Any]? = audioOnly ? [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 48_000,
+            AVNumberOfChannelsKey: 2,
+            AVEncoderBitRateKey: 192_000
+        ] : nil
         if includeSystemAudio {
-            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: nil)
+            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
             input.expectsMediaDataInRealTime = true
             audioInput = input
         } else {
             audioInput = nil
         }
         if includeMicrophone {
-            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: nil)
+            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
             input.expectsMediaDataInRealTime = true
             microphoneInput = input
         } else {
             microphoneInput = nil
         }
         super.init()
-        guard writer.canAdd(videoInput) else { throw RecordingError.writerInputUnavailable }
-        writer.add(videoInput)
+        if let videoInput {
+            guard writer.canAdd(videoInput) else { throw RecordingError.writerInputUnavailable }
+            writer.add(videoInput)
+        }
         if let audioInput {
             guard writer.canAdd(audioInput) else { throw RecordingError.writerInputUnavailable }
             writer.add(audioInput)
@@ -55,25 +70,34 @@ private final class ScreenRecordingOutput: NSObject, SCStreamOutput, SCStreamDel
         guard CMSampleBufferDataIsReady(sampleBuffer) else { return }
         switch type {
         case .screen:
-            if writer.status == .unknown {
-                guard writer.startWriting() else { fail(writer.error?.localizedDescription ?? "The movie file could not be started."); return }
-                writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-                hasStartedSession = true
-            }
-            guard writer.status == .writing, videoInput.isReadyForMoreMediaData else { return }
+            guard let videoInput else { return }
+            if !hasStartedSession { beginWriting(at: CMSampleBufferGetPresentationTimeStamp(sampleBuffer)) }
+            guard hasStartedSession, writer.status == .writing, videoInput.isReadyForMoreMediaData else { return }
             if !videoInput.append(sampleBuffer) { fail(writer.error?.localizedDescription ?? "A screen frame could not be saved.") }
         case .audio:
-            guard hasStartedSession, writer.status == .writing,
-                  let audioInput, audioInput.isReadyForMoreMediaData else { return }
+            guard let audioInput else { return }
+            if audioOnly && !hasStartedSession { beginWriting(at: CMSampleBufferGetPresentationTimeStamp(sampleBuffer)) }
+            guard hasStartedSession, writer.status == .writing, audioInput.isReadyForMoreMediaData else { return }
             if !audioInput.append(sampleBuffer) { fail(writer.error?.localizedDescription ?? "System audio could not be saved.") }
         default:
-            if #available(macOS 15.0, *), type == .microphone,
-               hasStartedSession, writer.status == .writing,
-               let microphoneInput, microphoneInput.isReadyForMoreMediaData,
-               !microphoneInput.append(sampleBuffer) {
-                fail(writer.error?.localizedDescription ?? "Microphone audio could not be saved.")
+            if #available(macOS 15.0, *), type == .microphone, let microphoneInput {
+                if audioOnly && !hasStartedSession { beginWriting(at: CMSampleBufferGetPresentationTimeStamp(sampleBuffer)) }
+                if hasStartedSession, writer.status == .writing, microphoneInput.isReadyForMoreMediaData,
+                   !microphoneInput.append(sampleBuffer) {
+                    fail(writer.error?.localizedDescription ?? "Microphone audio could not be saved.")
+                }
             }
         }
+    }
+
+    private func beginWriting(at time: CMTime) {
+        guard writer.status == .unknown else { return }
+        guard writer.startWriting() else {
+            fail(writer.error?.localizedDescription ?? "The recording file could not be started.")
+            return
+        }
+        writer.startSession(atSourceTime: time)
+        hasStartedSession = true
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -96,7 +120,7 @@ private final class ScreenRecordingOutput: NSObject, SCStreamOutput, SCStreamDel
                     continuation.resume(returning: completed ? self.destination : nil)
                     return
                 }
-                self.videoInput.markAsFinished()
+                self.videoInput?.markAsFinished()
                 self.audioInput?.markAsFinished()
                 self.microphoneInput?.markAsFinished()
                 self.writer.finishWriting {
@@ -122,12 +146,14 @@ private final class ScreenRecordingOutput: NSObject, SCStreamOutput, SCStreamDel
 
 private enum RecordingError: LocalizedError {
     case noDisplay
+    case noAudioSource
     case windowUnavailable
     case writerInputUnavailable
 
     var errorDescription: String? {
         switch self {
         case .noDisplay: "No display is available to record."
+        case .noAudioSource: "Choose System Audio or Microphone before starting an audio-only recording."
         case .windowUnavailable: "The selected window is no longer available. Refresh the window list and choose it again."
         case .writerInputUnavailable: "macOS could not configure the recording file."
         }
@@ -142,12 +168,14 @@ final class ScreenRecorderController: ObservableObject {
     @Published private(set) var latestRecording: URL?
     @Published private(set) var recordings: [MeetingRecording] = []
     @Published private(set) var availableWindows: [SCWindow] = []
+    @Published var audioOnlyMode = false
     @Published var selectedWindowID: CGWindowID?
 
     private var stream: SCStream?
     private var output: ScreenRecordingOutput?
     private var startedAt: Date?
     private var timer: Timer?
+    private var recordingAudioOnly = false
 
     private var recordingsFolder: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -179,8 +207,12 @@ final class ScreenRecorderController: ObservableObject {
         }
     }
 
-    func start(includeSystemAudio: Bool, includeMicrophone: Bool, windowID: CGWindowID? = nil) async {
+    func start(includeSystemAudio: Bool, includeMicrophone: Bool, audioOnly: Bool = false, windowID: CGWindowID? = nil) async {
         guard !isRecording else { return }
+        if audioOnly && !includeSystemAudio && !includeMicrophone {
+            message = RecordingError.noAudioSource.localizedDescription
+            return
+        }
         if includeMicrophone {
             guard #available(macOS 15.0, *) else {
                 message = "Microphone recording requires macOS 15 or later."
@@ -195,7 +227,15 @@ final class ScreenRecorderController: ObservableObject {
             let outputWidth: Int
             let outputHeight: Int
             let sourceDescription: String
-            if let windowID {
+            if audioOnly {
+                guard let display = content.displays.first(where: { $0.displayID == (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }) ?? content.displays.first else {
+                    throw RecordingError.noDisplay
+                }
+                filter = SCContentFilter(display: display, excludingApplications: content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }, exceptingWindows: [])
+                outputWidth = display.width
+                outputHeight = display.height
+                sourceDescription = "system audio"
+            } else if let windowID {
                 guard let window = content.windows.first(where: { $0.windowID == windowID }),
                       window.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier,
                       window.frame.width >= 240, window.frame.height >= 120 else {
@@ -222,10 +262,11 @@ final class ScreenRecorderController: ObservableObject {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-            let destination = folder.appendingPathComponent("MacNotch-\(formatter.string(from: Date())).mov")
+            let fileExtension = audioOnly ? "m4a" : "mov"
+            let destination = folder.appendingPathComponent("MacNotch-\(formatter.string(from: Date())).\(fileExtension)")
 
             let output = try ScreenRecordingOutput(destination: destination, width: outputWidth, height: outputHeight,
-                                                   includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone)
+                                                   includeSystemAudio: includeSystemAudio, includeMicrophone: includeMicrophone, audioOnly: audioOnly)
             pendingOutput = output
             output.onFailure = { [weak self] error in
                 Task { @MainActor in
@@ -249,7 +290,7 @@ final class ScreenRecorderController: ObservableObject {
             if #available(macOS 15.0, *), includeMicrophone { configuration.captureMicrophone = true }
 
             let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
-            try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: output.queue)
+            if !audioOnly { try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: output.queue) }
             if includeSystemAudio { try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: output.queue) }
             if #available(macOS 15.0, *), includeMicrophone {
                 try stream.addStreamOutput(output, type: .microphone, sampleHandlerQueue: output.queue)
@@ -259,10 +300,13 @@ final class ScreenRecorderController: ObservableObject {
             self.output = output
             refreshRecordings()
             isRecording = true
+            recordingAudioOnly = audioOnly
             startedAt = Date()
             elapsed = 0
             let audio = [includeSystemAudio ? "system audio" : nil, includeMicrophone ? "microphone" : nil].compactMap { $0 }.joined(separator: " and ")
-            message = "Recording the \(sourceDescription)\(audio.isEmpty ? " without audio" : " with \(audio)")."
+            message = audioOnly
+                ? "Recording \(audio) to a local M4A file."
+                : "Recording the \(sourceDescription)\(audio.isEmpty ? " without audio" : " with \(audio)")."
             timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self, let startedAt = self.startedAt else { return }
@@ -286,11 +330,14 @@ final class ScreenRecorderController: ObservableObject {
             refreshRecordings()
             message = "Saved recording to Movies/MacNotch Recordings."
         } else {
-            message = "The recording ended before any usable video frames were captured. Check Screen Recording permission and try again."
+            message = recordingAudioOnly
+                ? "The recording ended before usable audio samples were captured. Check audio capture permissions and try again."
+                : "The recording ended before any usable video frames were captured. Check Screen Recording permission and try again."
         }
         stream = nil
         output = nil
         startedAt = nil
+        recordingAudioOnly = false
     }
 
     func openRecordingsFolder() {
