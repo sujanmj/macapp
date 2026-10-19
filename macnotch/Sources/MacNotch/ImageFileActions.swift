@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import Darwin
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -74,7 +75,7 @@ enum ImageFileActions {
                 failures.append("\(source.lastPathComponent): not a supported image")
                 continue
             }
-            let destination = uniqueDestination(for: source, in: directory, reservedNames: &reservedNames)
+            let destination = try uniqueDestination(for: source, in: directory, reservedNames: &reservedNames)
             do {
                 try createSmallerJPEG(from: source, to: destination, quality: quality, maxPixelSize: maxPixelSize)
                 outputs.append(destination)
@@ -86,20 +87,23 @@ enum ImageFileActions {
         return BatchImageExportOutcome(outputs: outputs, failures: failures)
     }
 
-    private static func uniqueDestination(for source: URL, in directory: URL, reservedNames: inout Set<String>) -> URL {
+    private static func uniqueDestination(for source: URL, in directory: URL, reservedNames: inout Set<String>) throws -> URL {
         let base = source.deletingPathExtension().lastPathComponent + "-smaller"
-        var index = 1
-        while true {
+        for index in 1...10_000 {
             let suffix = index == 1 ? "" : " \(index)"
             let name = base + suffix + ".jpg"
             let foldedName = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             let destination = directory.appendingPathComponent(name)
-            if !reservedNames.contains(foldedName), !FileManager.default.fileExists(atPath: destination.path) {
+            guard !reservedNames.contains(foldedName) else { continue }
+            let fileDescriptor = Darwin.open(destination.path, O_WRONLY | O_CREAT | O_EXCL, mode_t(S_IRUSR | S_IWUSR))
+            if fileDescriptor >= 0 {
+                Darwin.close(fileDescriptor)
                 reservedNames.insert(foldedName)
                 return destination
             }
-            index += 1
+            if errno != EEXIST { throw ImageFileActionError.writeFailed }
         }
+        throw ImageFileActionError.destinationUnavailable
     }
 }
 
@@ -109,6 +113,7 @@ private enum ImageFileActionError: LocalizedError {
     case imageProcessingFailed
     case writeFailed
     case invalidDirectory
+    case destinationUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -117,6 +122,7 @@ private enum ImageFileActionError: LocalizedError {
         case .imageProcessingFailed: "MacNotch could not prepare a smaller JPEG copy."
         case .writeFailed: "The JPEG copy could not be written. Check the destination and available disk space."
         case .invalidDirectory: "Choose an existing folder to save the image copies."
+        case .destinationUnavailable: "MacNotch could not find an unused filename for this image copy."
         }
     }
 }
