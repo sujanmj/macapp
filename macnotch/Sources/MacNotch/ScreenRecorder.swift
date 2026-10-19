@@ -187,6 +187,34 @@ final class ScreenRecorderController: ObservableObject {
         if latestRecording == nil { latestRecording = recordings.first?.url }
     }
 
+    func moveToTrash(_ recording: MeetingRecording) {
+        let files = recording.associatedFiles
+        guard files.contains(recording.url) else {
+            message = "This recording is no longer available. Refresh the list and try again."
+            refreshRecordings()
+            return
+        }
+        var moved = 0
+        var failures: [String] = []
+        for file in files {
+            do {
+                try FileManager.default.trashItem(at: file, resultingItemURL: nil)
+                moved += 1
+            } catch {
+                failures.append("\(file.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if latestRecording?.standardizedFileURL == recording.url.standardizedFileURL {
+            latestRecording = nil
+        }
+        refreshRecordings()
+        if failures.isEmpty {
+            message = "Moved the recording and \(max(0, moved - 1)) sidecar file(s) to Trash."
+        } else {
+            message = "Moved \(moved) file(s) to Trash. Some files could not be moved: \(failures[0])"
+        }
+    }
+
     func refreshWindows() async {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)

@@ -31,6 +31,10 @@ struct MeetingRecordingLibraryChecks {
         precondition(movieEntry?.subtitleURL.lastPathComponent == "recent.srt", "Subtitle path should sit beside its movie")
         precondition(audioEntry?.transcriptURL.lastPathComponent == "audio-only.txt", "Audio-only recordings should support local transcript sidecars")
         precondition(audioEntry?.subtitleURL.lastPathComponent == "audio-only.srt", "Audio-only recordings should support timed subtitle sidecars")
+        try Data("transcript".utf8).write(to: audioOnly.deletingPathExtension().appendingPathExtension("txt"))
+        try Data("captions".utf8).write(to: audioOnly.deletingPathExtension().appendingPathExtension("srt"))
+        precondition(audioEntry?.associatedFiles.map(\.lastPathComponent) == ["audio-only.m4a", "audio-only.txt", "audio-only.srt"], "Cleanup should include a recording and its existing transcript/caption sidecars")
+        precondition(movieEntry?.associatedFiles.map(\.lastPathComponent) == ["recent.mp4"], "Cleanup should leave unrelated recordings and missing sidecars alone")
         precondition(MeetingRecordingLibrary.list(in: root, limit: 1).count == 1, "The configured result limit should be respected")
         precondition(MeetingRecordingLibrary.list(in: root, limit: 0).isEmpty, "A nonpositive result limit should return no rows")
 

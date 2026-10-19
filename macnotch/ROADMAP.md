@@ -30,7 +30,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Calendar and Tasks | Partial — on-demand events, explicit event creation, reminder creation, and explicit completion; editing tasks and advanced calendar controls remain |
 | Productivity | Pomodoro | Partial — 25-minute focus, automatic 5-minute breaks, and a 15-minute break after each fourth focus; custom durations and cycle history remain |
 | Productivity | Teleprompter | Partial — local saved script, adjustable floating scroll reader, pause/resume, mirror mode, and global shortcut; script formatting and voice-follow scrolling remain |
-| Productivity | Meetings | Partial — local display or selected-window/system/mic recording, audio-only M4A capture, explicit on-device transcript and timed SRT captions, and a recent recording library; third-party controls and live transcripts remain |
+| Productivity | Meetings | Partial — local display or selected-window/system/mic recording, audio-only M4A capture, explicit on-device transcript and timed SRT captions, recent recording library, and confirmed Trash cleanup with sidecars; third-party controls and live transcripts remain |
 | Productivity | Notes | Partial — local quick note only |
 | Productivity | Thunderstorm launcher | Planned |
 | Productivity | Obsidian | Planned |

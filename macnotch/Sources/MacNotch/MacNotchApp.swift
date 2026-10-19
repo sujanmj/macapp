@@ -2258,6 +2258,7 @@ struct ScreenRecordingControls: View {
     @Binding var includeSystemAudio: Bool
     @Binding var includeMicrophone: Bool
     @StateObject private var transcriber = MeetingTranscriber()
+    @State private var recordingToTrash: MeetingRecording?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2354,6 +2355,18 @@ struct ScreenRecordingControls: View {
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .onAppear { recorder.refreshRecordings() }
+        .confirmationDialog("Move this recording to Trash?", isPresented: Binding(
+            get: { recordingToTrash != nil },
+            set: { if !$0 { recordingToTrash = nil } }
+        ), titleVisibility: .visible) {
+            Button("Move Recording and Notes to Trash", role: .destructive) {
+                if let recordingToTrash { recorder.moveToTrash(recordingToTrash) }
+                recordingToTrash = nil
+            }
+            Button("Cancel", role: .cancel) { recordingToTrash = nil }
+        } message: {
+            Text("The audio or video recording and any transcript or subtitle files beside it will be moved to Trash.")
+        }
         .padding(14).modifier(GlassCard(tint: .red))
     }
 
@@ -2394,6 +2407,8 @@ struct ScreenRecordingControls: View {
                                     Button { NSWorkspace.shared.open(recording.subtitleURL) } label: { Image(systemName: "captions.bubble") }
                                         .buttonStyle(.plain).help("Open timed subtitles")
                                 }
+                                Button { recordingToTrash = recording } label: { Image(systemName: "trash") }
+                                    .buttonStyle(.plain).help("Move recording and its notes to Trash")
                             }
                             .padding(.horizontal, 7).padding(.vertical, 5)
                             .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
