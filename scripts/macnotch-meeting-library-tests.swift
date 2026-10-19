@@ -23,6 +23,7 @@ struct MeetingRecordingLibraryChecks {
         precondition(entries.map(\.url.lastPathComponent) == ["recent.mp4", "old.MOV"], "Only regular movie files should be listed, newest first")
         precondition(entries.allSatisfy { $0.size == 3 }, "File size should be available for every recording")
         precondition(entries[0].transcriptURL.lastPathComponent == "recent.txt", "Transcript path should sit beside its movie")
+        precondition(entries[0].subtitleURL.lastPathComponent == "recent.srt", "Subtitle path should sit beside its movie")
         precondition(MeetingRecordingLibrary.list(in: root, limit: 1).count == 1, "The configured result limit should be respected")
         precondition(MeetingRecordingLibrary.list(in: root, limit: 0).isEmpty, "A nonpositive result limit should return no rows")
 

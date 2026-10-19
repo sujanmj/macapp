@@ -7,6 +7,7 @@ struct MeetingRecording: Identifiable, Equatable {
 
     var id: String { url.standardizedFileURL.path }
     var transcriptURL: URL { url.deletingPathExtension().appendingPathExtension("txt") }
+    var subtitleURL: URL { url.deletingPathExtension().appendingPathExtension("srt") }
 }
 
 enum MeetingRecordingLibrary {

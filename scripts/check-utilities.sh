@@ -70,3 +70,7 @@ xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
   macnotch/Sources/MacNotch/AudioControl.swift scripts/macnotch-audio-control-tests.swift \
   -framework AppKit -framework CoreAudio -framework SwiftUI -o "$scratch/macnotch-audio-control-check"
 "$scratch/macnotch-audio-control-check"
+xcrun swiftc -swift-version 5 -module-cache-path "$scratch/ModuleCache" \
+  macnotch/Sources/MacNotch/SubtitleFormatter.swift scripts/macnotch-subtitle-tests.swift \
+  -o "$scratch/macnotch-subtitle-check"
+"$scratch/macnotch-subtitle-check"

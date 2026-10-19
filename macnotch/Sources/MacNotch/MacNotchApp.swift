@@ -2213,6 +2213,9 @@ struct ScreenRecordingControls: View {
                     HStack(spacing: 8) {
                         Button("Open Transcript") { NSWorkspace.shared.open(transcript) }
                         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([transcript]) }
+                        if let subtitles = transcriber.subtitleURL {
+                            Button("Open Subtitles") { NSWorkspace.shared.open(subtitles) }
+                        }
                     }.font(.system(size: 10))
                 }
                 recordingHistory
@@ -2256,6 +2259,10 @@ struct ScreenRecordingControls: View {
                                 if FileManager.default.fileExists(atPath: recording.transcriptURL.path) {
                                     Button { NSWorkspace.shared.open(recording.transcriptURL) } label: { Image(systemName: "doc.text") }
                                         .buttonStyle(.plain).help("Open transcript")
+                                }
+                                if FileManager.default.fileExists(atPath: recording.subtitleURL.path) {
+                                    Button { NSWorkspace.shared.open(recording.subtitleURL) } label: { Image(systemName: "captions.bubble") }
+                                        .buttonStyle(.plain).help("Open timed subtitles")
                                 }
                             }
                             .padding(.horizontal, 7).padding(.vertical, 5)

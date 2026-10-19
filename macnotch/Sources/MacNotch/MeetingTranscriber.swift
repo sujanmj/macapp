@@ -8,11 +8,17 @@ private final class AssetExportBox: @unchecked Sendable {
     init(_ session: AVAssetExportSession) { self.session = session }
 }
 
+private struct LocalSpeechTranscript {
+    let text: String
+    let cues: [SubtitleCue]
+}
+
 @MainActor
 final class MeetingTranscriber: ObservableObject {
     @Published private(set) var isTranscribing = false
     @Published private(set) var message = "Transcription runs on this Mac when on-device speech recognition is available."
     @Published private(set) var transcriptURL: URL?
+    @Published private(set) var subtitleURL: URL?
 
     func transcribe(_ movieURL: URL) async {
         guard !isTranscribing else { return }
@@ -27,6 +33,7 @@ final class MeetingTranscriber: ObservableObject {
 
         isTranscribing = true
         transcriptURL = nil
+        subtitleURL = nil
         message = "Requesting speech-recognition access…"
         defer { isTranscribing = false }
 
@@ -45,15 +52,23 @@ final class MeetingTranscriber: ObservableObject {
             message = "Preparing the recording’s audio locally…"
             try await extractAudio(from: movieURL, to: audioURL)
             message = "Transcribing locally… This may take a while for long recordings."
-            let text = try await recognize(audioURL: audioURL, recognizer: recognizer)
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let transcript = try await recognize(audioURL: audioURL, recognizer: recognizer)
+            guard !transcript.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 message = "No speech was recognized in this recording."
                 return
             }
             let outputURL = movieURL.deletingPathExtension().appendingPathExtension("txt")
-            try text.write(to: outputURL, atomically: true, encoding: .utf8)
+            try transcript.text.write(to: outputURL, atomically: true, encoding: .utf8)
             transcriptURL = outputURL
-            message = "Transcript saved beside the recording. Audio was processed on this Mac."
+            let captionsURL = movieURL.deletingPathExtension().appendingPathExtension("srt")
+            let subtitles = SubtitleFormatter.srt(transcript.cues)
+            if !subtitles.isEmpty {
+                try subtitles.write(to: captionsURL, atomically: true, encoding: .utf8)
+                subtitleURL = captionsURL
+            }
+            message = subtitleURL == nil
+                ? "Transcript saved beside the recording. No timed subtitle cues were available."
+                : "Transcript and timed subtitles saved beside the recording. Audio was processed on this Mac."
         } catch {
             message = "Could not transcribe this recording: \(error.localizedDescription)"
         }
@@ -88,7 +103,7 @@ final class MeetingTranscriber: ObservableObject {
         }
     }
 
-    private func recognize(audioURL: URL, recognizer: SFSpeechRecognizer) async throws -> String {
+    private func recognize(audioURL: URL, recognizer: SFSpeechRecognizer) async throws -> LocalSpeechTranscript {
         try await withCheckedThrowingContinuation { continuation in
             let request = SFSpeechURLRecognitionRequest(url: audioURL)
             request.requiresOnDeviceRecognition = true
@@ -99,7 +114,11 @@ final class MeetingTranscriber: ObservableObject {
                     task?.cancel()
                     continuation.resume(throwing: error)
                 } else if let result, result.isFinal {
-                    continuation.resume(returning: result.bestTranscription.formattedString)
+                    let transcription = result.bestTranscription
+                    let cues = transcription.segments.map { segment in
+                        SubtitleCue(text: segment.substring, start: segment.timestamp, duration: segment.duration)
+                    }
+                    continuation.resume(returning: LocalSpeechTranscript(text: transcription.formattedString, cues: cues))
                 }
             }
         }
