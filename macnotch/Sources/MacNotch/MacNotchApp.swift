@@ -212,6 +212,12 @@ final class NotchStore: ObservableObject {
             FileManager.default.fileExists(atPath: $0.path) && VideoFileActions.isSupportedVideo($0)
         }
     }
+    var trayConvertibleAudioURLs: [URL] {
+        let entries = selectedTrayIDs.isEmpty ? trayFiles : trayFiles.filter { selectedTrayIDs.contains($0.id) }
+        return entries.map(\.url).filter {
+            FileManager.default.fileExists(atPath: $0.path) && AudioFileActions.isSupportedAudio($0)
+        }
+    }
     @Published var metrics = MacMetrics()
     @Published var metricHistory: [SystemMetricPoint] = []
     private var metricHistoryStore = SystemMetricHistory()
@@ -420,6 +426,32 @@ final class NotchStore: ObservableObject {
                     NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
                 } else {
                     store.message = "Created \(result.outputs.count) compressed copies; \(result.failures.count) video(s) could not be compressed. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                }
+            }
+        }
+    }
+    func convertTrayAudioToM4A() {
+        let sources = trayConvertibleAudioURLs
+        guard !sources.isEmpty else { message = "Select existing WAV, AIFF, AIF, or CAF audio in the tray first."; return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Folder for Smaller M4A Copies"
+        panel.prompt = "Save Copies"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let directory = panel.url else { message = "Audio conversion canceled."; return }
+        message = "Converting \(sources.count) audio file\(sources.count == 1 ? "" : "s")… Originals remain unchanged."
+        Task.detached(priority: .userInitiated) { [store = self, sources, directory] in
+            let result = await AudioFileActions.convertToM4A(sources, into: directory)
+            await MainActor.run {
+                if result.outputs.isEmpty {
+                    store.message = "No smaller M4A copies were created. " + (result.failures.first?.1 ?? "Check the selected files.")
+                } else if result.failures.isEmpty {
+                    store.message = "Created \(result.outputs.count) smaller M4A copies. Originals remain unchanged."
+                    NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
+                } else {
+                    store.message = "Created \(result.outputs.count) M4A copies; \(result.failures.count) file(s) could not be converted. Originals remain unchanged."
                     NSWorkspace.shared.activateFileViewerSelecting(result.outputs)
                 }
             }
@@ -1329,6 +1361,11 @@ struct NotchView: View {
                 } label: { Label("Video", systemImage: "film") }
                     .help("Compress selected videos, or all tray videos, into smaller MP4 copies")
                     .disabled(store.trayVideoURLs.isEmpty)
+                Menu {
+                    Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }
+                } label: { Label("Audio", systemImage: "waveform") }
+                    .help("Convert selected WAV, AIFF, or CAF audio to smaller M4A copies")
+                    .disabled(store.trayConvertibleAudioURLs.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 Button(store.selectedTrayIDs.isEmpty ? "ZIP All" : "ZIP Selected") { store.zipTray() }.disabled(store.trayFiles.isEmpty)
@@ -2051,6 +2088,11 @@ private struct FloatingTrayView: View {
                 } label: { Label("Video", systemImage: "film") }
                     .help("Compress selected videos, or all tray videos, into smaller MP4 copies")
                     .disabled(store.trayVideoURLs.isEmpty)
+                Menu {
+                    Button("Convert to Smaller M4A Copies") { store.convertTrayAudioToM4A() }
+                } label: { Label("Audio", systemImage: "waveform") }
+                    .help("Convert selected WAV, AIFF, or CAF audio to smaller M4A copies")
+                    .disabled(store.trayConvertibleAudioURLs.isEmpty)
                 ShareLink(items: store.trayURLsForSharing) { Label(store.selectedTrayIDs.isEmpty ? "Share All" : "Share Selected", systemImage: "square.and.arrow.up") }
                     .disabled(store.trayURLsForSharing.isEmpty)
                 let visibleIDs = Set(store.visibleTrayFiles.map(\.id))
