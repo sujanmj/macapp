@@ -93,38 +93,18 @@ final class VoiceStore: ObservableObject {
         permissionHelp = false
         message = "Checking microphone permission…"
         show?()
-        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
-            NSApp.activate(ignoringOtherApps: true)
-            message = "Allow Microphone access in the macOS prompt to begin."
-            AVCaptureDevice.requestAccess(for: .audio) { _ in }
-        }
-        // Poll authorization with a bounded wait: a missing/dismissed system
-        // prompt must never leave Start disabled indefinitely.
-        for _ in 0..<150 {
-            guard generation == session else { return }
-            if AVCaptureDevice.authorizationStatus(for: .audio) != .notDetermined { break }
-            try? await Task.sleep(nanoseconds: 200_000_000)
-        }
         guard generation == session else { return }
-        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+        guard await requestMicrophonePermission() else {
+            guard generation == session else { return }
             busy = false; permissionHelp = true
             message = "Microphone permission is required. Open Microphone Settings, enable MacVoice, then try Start again. If no prompt appeared, quit MacVoice and reopen the copy installed in Applications."
             return
         }
+        guard generation == session else { return }
         if mode == "Local" {
-            message = "Checking Speech Recognition permission…"
-            if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
-                NSApp.activate(ignoringOtherApps: true)
-                message = "Allow Speech Recognition in the macOS prompt to begin."
-                SFSpeechRecognizer.requestAuthorization { _ in }
-            }
-            for _ in 0..<150 {
-                guard generation == session else { return }
-                if SFSpeechRecognizer.authorizationStatus() != .notDetermined { break }
-                try? await Task.sleep(nanoseconds: 200_000_000)
-            }
+            let speechStatus = await requestSpeechRecognitionPermission()
             guard generation == session else { return }
-            guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
+            guard speechStatus == .authorized else {
                 busy = false; permissionHelp = true
                 message = "Speech Recognition permission is required for Local mode. Enable MacVoice in Speech Recognition Settings, then try Start again."
                 return
@@ -145,6 +125,30 @@ final class VoiceStore: ObservableObject {
                 }
             }
         } catch { busy = false; stopAudio(); recognitionTask?.cancel(); recognitionTask = nil; recognitionRequest = nil; deleteAudio(); message = error.localizedDescription; show?() }
+    }
+    private func requestMicrophonePermission() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: return true
+        case .notDetermined:
+            NSApp.activate(ignoringOtherApps: true)
+            message = "Allow Microphone access in the macOS prompt to begin."
+            show?()
+            return await withCheckedContinuation { continuation in
+                AVCaptureDevice.requestAccess(for: .audio) { granted in continuation.resume(returning: granted) }
+            }
+        default: return false
+        }
+    }
+
+    private func requestSpeechRecognitionPermission() async -> SFSpeechRecognizerAuthorizationStatus {
+        let status = SFSpeechRecognizer.authorizationStatus()
+        guard status == .notDetermined else { return status }
+        NSApp.activate(ignoringOtherApps: true)
+        message = "Allow Speech Recognition in the macOS prompt to begin."
+        show?()
+        return await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { result in continuation.resume(returning: result) }
+        }
     }
     private func startLocal() throws {
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeID)), recognizer.isAvailable,

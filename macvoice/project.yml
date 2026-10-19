@@ -14,8 +14,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sujanmj.macvoice
-        MARKETING_VERSION: '0.4.0'
-        CURRENT_PROJECT_VERSION: '4'
+        MARKETING_VERSION: '0.5.0'
+        CURRENT_PROJECT_VERSION: '5'
         SWIFT_VERSION: '5.9'
         MACOSX_DEPLOYMENT_TARGET: '14.0'
         INFOPLIST_FILE: Sources/MacVoice/Info.plist

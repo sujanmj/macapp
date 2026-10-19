@@ -1,4 +1,4 @@
-# MacVoice v0.1
+# MacVoice v0.5
 
 Native voice typing and AI text editing inspired by [Voicy at usevoicy.com](https://usevoicy.com/). Independent implementation, not a rebrand or an exact reproduction of its proprietary service.
 
@@ -35,3 +35,7 @@ Choose **Microphone** for nearby voices/external TV, or **Mac audio** for meetin
 ## v0.4
 
 Restores the complete v0.2 MacVoice application behaviour at the user’s request: microphone dictation, permission recovery, optional cloud transcription and editing. Removes v0.3 Get Answer and Mac/system-audio capture. The version increases to 0.4 so this rollback can replace v0.3 cleanly.
+
+## v0.5
+
+Replaces 30-second permission polling with macOS's microphone and Speech Recognition permission completion callbacks. The Start action now updates its visible prompt, waits for the actual result, and immediately returns to an enabled state with Settings recovery links when access is denied. The restored v0.2 dictation flow and feature set remain in place.
