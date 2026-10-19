@@ -58,6 +58,48 @@ final class CalendarEventsController: ObservableObject {
             message = "Could not load calendar events: \(error.localizedDescription)"
         }
     }
+
+    func create(title: String, start: Date, durationMinutes: Int) async -> Bool {
+        let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedTitle.isEmpty else {
+            message = "Enter a title for the calendar event."
+            return false
+        }
+        guard !busy else { return false }
+        let duration = min(480, max(15, durationMinutes))
+        busy = true
+        defer { busy = false }
+        do {
+            let status = EKEventStore.authorizationStatus(for: .event)
+            if status == .notDetermined {
+                guard try await eventStore.requestFullAccessToEvents() else {
+                    message = "Calendar access was not granted. You can enable it in System Settings → Privacy & Security → Calendars."
+                    return false
+                }
+            }
+            guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+                message = "Allow full calendar access in System Settings → Privacy & Security → Calendars to create events."
+                return false
+            }
+            guard let calendar = eventStore.defaultCalendarForNewEvents else {
+                message = "No writable calendar is available in the Calendar app."
+                return false
+            }
+            let event = EKEvent(eventStore: eventStore)
+            event.title = cleanedTitle
+            event.startDate = start
+            event.endDate = start.addingTimeInterval(TimeInterval(duration * 60))
+            event.calendar = calendar
+            try eventStore.save(event, span: .thisEvent, commit: true)
+            message = "Created “\(cleanedTitle)” in \(calendar.title)."
+            busy = false
+            if hasLoaded { await loadUpcomingEvents() }
+            return true
+        } catch {
+            message = "Could not create calendar event: \(error.localizedDescription)"
+            return false
+        }
+    }
 }
 
 struct ReminderItem: Identifiable {

@@ -2068,7 +2068,7 @@ private struct CalendarEventsView: View {
         tasks = store.calendarTasksController
     }
     @State private var section = "Events"
-    @State private var showingReminderComposer = false
+    @State private var composer: CalendarComposer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2090,11 +2090,9 @@ private struct CalendarEventsView: View {
                     Label(busy ? "Loading…" : (loaded ? "Refresh" : (section == "Events" ? "Load Events" : "Load Reminders")),
                           systemImage: section == "Events" ? "calendar.badge.clock" : "checklist")
                 }.disabled(section == "Events" ? controller.busy : tasks.busy).buttonStyle(.borderedProminent).tint(.cyan)
-                if section == "Reminders" {
-                    Button { showingReminderComposer = true } label: { Label("New", systemImage: "plus") }
-                        .help("Create a reminder")
-                        .disabled(tasks.busy)
-                }
+                Button { composer = section == "Events" ? .event : .reminder } label: { Label("New", systemImage: "plus") }
+                    .help(section == "Events" ? "Create a calendar event" : "Create a reminder")
+                    .disabled(section == "Events" ? controller.busy : tasks.busy)
             }
             Picker("Calendar section", selection: $section) {
                 Text("Events").tag("Events")
@@ -2107,7 +2105,12 @@ private struct CalendarEventsView: View {
                 openPrivacy(section == "Events" ? "Privacy_Calendars" : "Privacy_Reminders")
             }.font(.system(size: 10))
         }.padding(14).modifier(GlassCard(tint: .cyan))
-            .sheet(isPresented: $showingReminderComposer) { NewReminderSheet(tasks: tasks) }
+            .sheet(item: $composer) { composer in
+                switch composer {
+                case .event: NewCalendarEventSheet(controller: controller)
+                case .reminder: NewReminderSheet(tasks: tasks)
+                }
+            }
     }
 
     @ViewBuilder private var eventList: some View {
@@ -2167,6 +2170,48 @@ private struct CalendarEventsView: View {
             ContentUnavailableView("Your tasks, at a glance", systemImage: "checklist", description: Text("Load reminders when you’re ready. Reminder access is requested only when you press the button."))
                 .frame(height: 120)
         }
+    }
+}
+
+private enum CalendarComposer: String, Identifiable {
+    case event
+    case reminder
+    var id: String { rawValue }
+}
+
+private struct NewCalendarEventSheet: View {
+    @ObservedObject var controller: CalendarEventsController
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var start = Date().addingTimeInterval(3600)
+    @State private var durationMinutes = 30
+    @State private var saving = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("New Calendar Event").font(.headline)
+            TextField("Event title", text: $title).textFieldStyle(.roundedBorder)
+            DatePicker("Starts", selection: $start, displayedComponents: [.date, .hourAndMinute])
+            Stepper("Duration · \(durationMinutes) minutes", value: $durationMinutes, in: 15...480, step: 15)
+            Text("The event is saved to your default Calendar. Access is requested only when you save.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(controller.message).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button(saving ? "Saving…" : "Create Event") {
+                    saving = true
+                    Task {
+                        if await controller.create(title: title, start: start, durationMinutes: durationMinutes) { dismiss() }
+                        saving = false
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
     }
 }
 
