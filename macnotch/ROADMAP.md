@@ -36,7 +36,7 @@ Status means **complete** only after the user-facing workflow is implemented, te
 | Productivity | Thunderstorm launcher | Planned |
 | Productivity | Obsidian | Planned |
 | Productivity | Weather | Planned |
-| Productivity | Action Ring | Partial — pointer-positioned radial launcher for tray, music, widgets, recording, focus, Gemini, notes, and settings; Settings can show/hide built-in actions and preserves selected order; custom actions and extension catalog remain |
+| Productivity | Action Ring | Partial — pointer-positioned radial launcher for built-ins plus up to eight user-added HTTPS websites or app shortcuts; built-in visibility and ordering persist; extension catalog remains |
 | Productivity | DropClip | Planned |
 | Productivity | Xcode Builds | Planned |
 | Productivity | Things 3 | Planned |
@@ -77,6 +77,6 @@ Status means **complete** only after the user-facing workflow is implemented, te
 4. **Productivity and file actions:** calendar/tasks, launcher/action ring, conversion/compression, Finder actions, teleprompter, and local send.
 5. **Integrations and polish:** AI agents/MCP, Obsidian/Things/Kaset, window management, and optional iPhone sync.
 
-v0.66 adds an optional idle auto-hide for the floating tray; the timer resets while the pointer is over the shelf. v0.67 adds per-action visibility controls for the Action Ring and preserves the chosen action order.
+v0.66 adds an optional idle auto-hide for the floating tray; the timer resets while the pointer is over the shelf. v0.67 adds per-action visibility controls for the Action Ring and preserves the chosen action order. v0.68 adds up to eight custom HTTPS website and app shortcuts to the Action Ring.
 
 Every increment still needs a macOS build, meaningful checks, permission/device testing for the APIs involved, an updated tracker, and a verified GitHub installer before it is called ready.

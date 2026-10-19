@@ -1,4 +1,4 @@
-# MacNotch v0.67
+# MacNotch v0.68
 
 MacNotch is a native macOS productivity panel that unfolds from the camera notch. The compact black pill stays close to the built-in notch size. Hover or click to open the glass panel, pin it, or use **Control–Option–N**. Settings includes **Hide MacNotch in full-screen apps**, enabled by default.
 
@@ -24,7 +24,7 @@ MacNotch is a native macOS productivity panel that unfolds from the camera notch
 - **Clipboard:** explicitly enable session-only capture, up to 20 unpinned clips (2 MB each); search, copy, or combine selected text. Pinning explicitly saves that item in an unencrypted local app-support file on this Mac, up to 100 items / 8 MB total. Clear History removes session clips but keeps pins; Clear Pins deletes saved pins. Disabling capture removes session clips but keeps pins. Concealed, transient and generated content and common password-manager foreground apps are excluded.
 - **Focus and MacPulse glance:** use a local focus timer and read a timestamped RAM/CPU snapshot written by MacPulse.
 - **Teleprompter:** save a local script, open a floating always-on-top reader, adjust scroll speed and text size, pause/resume/reset, and mirror the text for a beam-splitter setup. Control–Option–P opens the reader. Scrolling is local and requires no account or network access.
-- **Action Ring:** press **Control–Option–R** to open a compact radial launcher near the pointer. Shortcuts open File Tray, Music, Widgets, Recording, Focus, Gemini, Notes, or Settings; MacNotch dismisses the ring before showing the selected tool. Settings lets you hide built-in actions you don't use and restores your chosen arrangement next time.
+- **Action Ring:** press **Control–Option–R** to open a compact radial launcher near the pointer. Shortcuts open File Tray, Music, Widgets, Recording, Focus, Gemini, Notes, or Settings; MacNotch dismisses the ring before showing the selected tool. Settings lets you hide built-in actions, add up to eight custom HTTPS websites or application shortcuts, and remove custom shortcuts. Website entries reject non-HTTPS addresses; chosen apps launch through macOS.
 - **Calendar & Tasks:** explicitly load upcoming events from the next seven days or incomplete reminders due in the next month. Create an event in your default Calendar with a chosen start and duration, or create a reminder in your default Reminders list with an optional due date. MacNotch asks for Calendar or Reminders permission only when you load or save, and marking a reminder complete is a separate explicit action. Data stays local.
 - **Notes, Siri, and Shortcuts:** notes save locally; Siri opens Apple's own interface rather than running inside MacNotch.
 - **Hardware feedback:** optional volume and brightness-key indications. macOS exposes brightness direction rather than a dependable percentage on supported Macs.
@@ -42,6 +42,10 @@ The active ChatGPT or Gemini app can be recognized by its frontmost application 
 Run `bash scripts/package-utility.sh MacNotch` on macOS 14+ with Xcode and XcodeGen. It creates a universal Apple Silicon/Intel DMG and checksum. The beta is ad-hoc signed and unnotarized. macOS screen, microphone, player Automation permissions, file drag-and-drop, display arrangements, full-screen Spaces, and real recording output need testing on the target Mac. Gemini requests require a user-provided API key and network access.
 
 Run `bash scripts/check-utilities.sh` to check shared utility behavior, Gemini response handling, MacNotch system sampling, artwork URL and image validation, and local Vision OCR on a generated test image. The meeting transcription flow compiles into the universal app; real transcription depends on macOS language assets and user-granted Speech Recognition permission.
+
+## v0.68
+
+Expanded Action Ring customization with up to eight user-added HTTPS website and application shortcuts. Entries persist locally, can be removed in Settings, and launch through the user's default browser or macOS Launch Services. Website shortcuts accept HTTPS only.
 
 ## v0.12
 

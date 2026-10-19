@@ -1,5 +1,19 @@
 import SwiftUI
 
+struct CustomActionRingShortcut: Identifiable, Codable, Equatable {
+    let id: UUID
+    var title: String
+    var target: String
+    var isApplication: Bool
+
+    init(title: String, target: String, isApplication: Bool) {
+        id = UUID()
+        self.title = title
+        self.target = target
+        self.isApplication = isApplication
+    }
+}
+
 struct ActionRingOption: Identifiable {
     let id: String
     let title: String
@@ -32,9 +46,23 @@ struct ActionRingView: View {
 
     private var visibleActions: [ActionRingAction] {
         let ranks = Dictionary(uniqueKeysWithValues: store.actionRingActionIDs.enumerated().map { ($1, $0) })
-        return actions.filter { ranks[$0.id] != nil }.sorted {
+        let builtIn = actions.filter { ranks[$0.id] != nil }.sorted {
             ranks[$0.id, default: Int.max] < ranks[$1.id, default: Int.max]
         }
+        let custom = store.customRingShortcuts.map { shortcut in
+            ActionRingAction(
+                id: "custom-\(shortcut.id.uuidString)",
+                title: shortcut.title,
+                symbol: shortcut.isApplication ? "app.fill" : "globe",
+                tint: shortcut.isApplication ? .mint : .cyan
+            ) {
+                let url = shortcut.isApplication
+                    ? URL(fileURLWithPath: shortcut.target)
+                    : URL(string: shortcut.target)
+                if let url { NSWorkspace.shared.open(url) }
+            }
+        }
+        return builtIn + custom
     }
 
     var body: some View {
@@ -75,22 +103,24 @@ struct ActionRingView: View {
         let angle = (2 * Double.pi * Double(index) / Double(max(1, visibleActions.count))) - Double.pi / 2
         let x = center.x + CGFloat(cos(angle)) * radius
         let y = center.y + CGFloat(sin(angle)) * radius
+        let compact = visibleActions.count > 10
         return Button {
             onDismiss()
             action.perform()
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: action.symbol)
-                    .font(.system(size: 19, weight: .semibold))
+                    .font(.system(size: compact ? 15 : 19, weight: .semibold))
                     .foregroundStyle(action.tint)
                 Text(action.title)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: compact ? 7 : 9, weight: .medium))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            .frame(width: 66, height: 62)
-            .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 17))
-            .overlay(RoundedRectangle(cornerRadius: 17).stroke(action.tint.opacity(0.23), lineWidth: 1))
-            .contentShape(RoundedRectangle(cornerRadius: 17))
+            .frame(width: compact ? 46 : 66, height: compact ? 48 : 62)
+            .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: compact ? 13 : 17))
+            .overlay(RoundedRectangle(cornerRadius: compact ? 13 : 17).stroke(action.tint.opacity(0.23), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: compact ? 13 : 17))
         }
         .buttonStyle(.plain)
         .help(action.title)
