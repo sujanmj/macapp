@@ -4,6 +4,11 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+struct BatchImageExportOutcome: Equatable {
+    let outputs: [URL]
+    let failures: [String]
+}
+
 enum ImageFileActions {
     static func createSmallerJPEG(from sourceURL: URL, to destinationURL: URL, quality: CGFloat = 0.76, maxPixelSize: Int = 2048) throws {
         guard sourceURL.isFileURL, destinationURL.isFileURL,
@@ -44,6 +49,58 @@ enum ImageFileActions {
             throw ImageFileActionError.writeFailed
         }
     }
+
+    static func createSmallerJPEGs(from sourceURLs: [URL], in directory: URL, quality: CGFloat = 0.76, maxPixelSize: Int = 2048) throws -> BatchImageExportOutcome {
+        guard directory.isFileURL,
+              (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+            throw ImageFileActionError.invalidDirectory
+        }
+
+        let uniqueSources = sourceURLs.reduce(into: [URL]()) { result, url in
+            let standardized = url.standardizedFileURL
+            if standardized.isFileURL, !result.contains(where: { $0.standardizedFileURL == standardized }) {
+                result.append(standardized)
+            }
+        }
+        var reservedNames = Set<String>()
+        var outputs: [URL] = []
+        var failures: [String] = []
+        for source in uniqueSources {
+            guard FileManager.default.fileExists(atPath: source.path) else {
+                failures.append("\(source.lastPathComponent): file is missing")
+                continue
+            }
+            guard let imageType = UTType(filenameExtension: source.pathExtension), imageType.conforms(to: .image) else {
+                failures.append("\(source.lastPathComponent): not a supported image")
+                continue
+            }
+            let destination = uniqueDestination(for: source, in: directory, reservedNames: &reservedNames)
+            do {
+                try createSmallerJPEG(from: source, to: destination, quality: quality, maxPixelSize: maxPixelSize)
+                outputs.append(destination)
+            } catch {
+                try? FileManager.default.removeItem(at: destination)
+                failures.append("\(source.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        return BatchImageExportOutcome(outputs: outputs, failures: failures)
+    }
+
+    private static func uniqueDestination(for source: URL, in directory: URL, reservedNames: inout Set<String>) -> URL {
+        let base = source.deletingPathExtension().lastPathComponent + "-smaller"
+        var index = 1
+        while true {
+            let suffix = index == 1 ? "" : " \(index)"
+            let name = base + suffix + ".jpg"
+            let foldedName = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            let destination = directory.appendingPathComponent(name)
+            if !reservedNames.contains(foldedName), !FileManager.default.fileExists(atPath: destination.path) {
+                reservedNames.insert(foldedName)
+                return destination
+            }
+            index += 1
+        }
+    }
 }
 
 private enum ImageFileActionError: LocalizedError {
@@ -51,6 +108,7 @@ private enum ImageFileActionError: LocalizedError {
     case unreadableImage
     case imageProcessingFailed
     case writeFailed
+    case invalidDirectory
 
     var errorDescription: String? {
         switch self {
@@ -58,6 +116,7 @@ private enum ImageFileActionError: LocalizedError {
         case .unreadableImage: "MacNotch could not read this image file."
         case .imageProcessingFailed: "MacNotch could not prepare a smaller JPEG copy."
         case .writeFailed: "The JPEG copy could not be written. Check the destination and available disk space."
+        case .invalidDirectory: "Choose an existing folder to save the image copies."
         }
     }
 }

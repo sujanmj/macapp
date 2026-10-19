@@ -44,6 +44,34 @@ struct MacNotchImageActionTests {
         catch { rejectedOriginalDestination = true }
         guard rejectedOriginalDestination else { fatalError("The original image destination should have been rejected") }
 
+        let secondFolder = folder.appendingPathComponent("another", isDirectory: true)
+        let batchFolder = folder.appendingPathComponent("batch", isDirectory: true)
+        try FileManager.default.createDirectory(at: secondFolder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: batchFolder, withIntermediateDirectories: true)
+        let duplicateNameSource = secondFolder.appendingPathComponent("original.png")
+        try FileManager.default.copyItem(at: original, to: duplicateNameSource)
+        let unsupported = folder.appendingPathComponent("notes.txt")
+        try Data("not an image".utf8).write(to: unsupported)
+        let existing = batchFolder.appendingPathComponent("original-smaller.jpg")
+        try Data("keep this existing file".utf8).write(to: existing)
+
+        let batch = try ImageFileActions.createSmallerJPEGs(
+            from: [original, duplicateNameSource, original, unsupported],
+            in: batchFolder
+        )
+        guard batch.outputs.count == 2,
+              batch.failures.count == 1,
+              batch.outputs.map(\.lastPathComponent) == ["original-smaller 2.jpg", "original-smaller 3.jpg"],
+              (try Data(contentsOf: existing)) == Data("keep this existing file".utf8),
+              batch.outputs.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }),
+              let batchSource = CGImageSourceCreateWithURL(batch.outputs[0] as CFURL, nil),
+              let batchProperties = CGImageSourceCopyPropertiesAtIndex(batchSource, 0, nil) as? [CFString: Any],
+              (batchProperties[kCGImagePropertyPixelWidth] as? Int) == 2048,
+              FileManager.default.fileExists(atPath: original.path),
+              FileManager.default.fileExists(atPath: duplicateNameSource.path) else {
+            fatalError("Batch conversion should skip unsupported files, deduplicate sources, avoid collisions, and preserve all originals")
+        }
+
         print("MacNotch image action checks passed")
     }
 }
